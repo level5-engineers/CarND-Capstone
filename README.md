@@ -1,4 +1,4 @@
-This is the project repo for the final project of the Udacity Self-Driving Car Nanodegree: Programming a Real Self-Driving Car. For more information about the project, see the project introduction [here](https://classroom.udacity.com/nanodegrees/nd013/parts/6047fe34-d93c-4f50-8336-b70ef10cb4b2/modules/e1a23b06-329a-4684-a717-ad476f0d8dff/lessons/462c933d-9f24-42d3-8bdc-a08a5fc866e4/concepts/5ab4b122-83e6-436d-850f-9f4d26627fd9).
+This is the project repo for the final project of the Udacity Self-Driving Car Nanodegree: Programming a Real Self-Driving Car. For more information about the project, see the project wiki [here](https://github.com/level5-engineers/system-integration/wiki).
 
 ### Installation 
 
@@ -21,22 +21,34 @@ This is the project repo for the final project of the Udacity Self-Driving Car N
 
 1. Clone the project repository
 ```bash
-git clone https://github.com/udacity/CarND-Capstone.git
+git clone https://github.com/level5-engineers/system-integration.git
 ```
 
 2. Install python dependencies
 ```bash
-cd CarND-Capstone
+cd system-integration
 pip install -r requirements.txt
 ```
-3. Make and run styx
+
+3. Make the controller
 ```bash
 cd ros
 catkin_make
+```
+
+4. In a new terminal window, start roscore
+```bash
+roscore
+```
+
+5. Start the simulator, select screen resolution 800x600, click SELECT, uncheck the Manual checkbox. Ideally, run the simulator in the host environment (outside of the virtual machine).
+
+6. In a new terminal window, start the controller
+```bash
+cd system-integration/ros
 source devel/setup.sh
 roslaunch launch/styx.launch
 ```
-4. Run the simulator
 
 ### Real world testing
 1. Download [training bag](https://drive.google.com/file/d/0B2_h37bMVw3iYkdJTlRSUlJIamM/view?usp=sharing) that was recorded on the Udacity self-driving car
@@ -50,7 +62,7 @@ rosbag play -l traffic_light_bag_files/loop_with_traffic_light.bag
 ```
 4. Launch your project in site mode
 ```bash
-cd CarND-Capstone/ros
+cd system-integration/ros
 roslaunch launch/site.launch
 ```
 

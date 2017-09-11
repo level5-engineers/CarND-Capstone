@@ -5,6 +5,8 @@ from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
 
 import math
+import assist
+import tf
 
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
@@ -21,39 +23,69 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 5 # Number of waypoints to publish. (Can be changed.)
 
 
 class WaypointUpdater(object):
     def __init__(self):
         rospy.init_node('waypoint_updater')
-
-        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
-        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
-
-        # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
-
-
+        
+        rospy.Subscriber('/current_pose', PoseStamped, self.callback_pose)
+        rospy.Subscriber('/base_waypoints', Lane, self.callback_waypoints)
+        
+        # TODO: Add a subscriber for /traffic_waypoint below
+        #rospy.Subscriber('/traffic_waypoint', Lane, self.callback_traffic) ??
+        
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
-
-        # TODO: Add other member variables you need below
-
+        
+        # other member variables we need
+        self.x = None
+        self.y = None
+        self.t = None
+        self.v = 4.0
+        
+        # do not exit, await shutdown
         rospy.spin()
 
-    def pose_cb(self, msg):
-        # TODO: Implement
-        pass
+    # TODO: refine this initial implementation
+    def callback_pose(self, msg):
+        self.x = msg.pose.position.x
+        self.y = msg.pose.position.y
+        o = msg.pose.orientation
+        quat = [o.x, o.y, o.z, o.w]
+        euler = tf.transformations.euler_from_quaternion(quat)
+        self.t = euler[2]
 
-    def waypoints_cb(self, waypoints):
-        # TODO: Implement
-        pass
+    # TODO: refine this initial implementation
+    def callback_waypoints(self, waypoints):
+        if self.x is None:
+            return
+        
+        # get the index of the closest waypoint
+        idx = assist.nearest_waypoint(waypoints, self.x, self.y, self.t)
+        
+        # make a lane object
+        lane = Lane()
+        
+        # and add a list of waypoints
+        for _ in range(LOOKAHEAD_WPS):
+            wp = waypoints.waypoints[idx]
+            new_point = Waypoint()
+            new_point.pose = wp.pose
+            
+            # set the velocity at each waypoint
+            new_point.twist.twist.linear.x = self.v
+            
+            # append the point
+            lane.waypoints.append(new_point)
+            idx += 1
+            
+        # send
+        self.final_waypoints_pub.publish(lane)
 
-    def traffic_cb(self, msg):
+
+    def callback_traffic(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
-        pass
-
-    def obstacle_cb(self, msg):
-        # TODO: Callback for /obstacle_waypoint message. We will implement it later
         pass
 
     def get_waypoint_velocity(self, waypoint):

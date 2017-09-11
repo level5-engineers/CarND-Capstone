@@ -12,7 +12,9 @@ from conf import conf
 sio = socketio.Server()
 app = Flask(__name__)
 bridge = Bridge(conf)
-msgs = []
+msgs = {}
+# To mitigate simulator lag, see
+# https://github.com/udacity/self-driving-car-sim/issues/53
 
 dbw_enable = False
 
@@ -21,9 +23,7 @@ def connect(sid, environ):
     print("connect ", sid)
 
 def send(topic, data):
-    s = 1
-    msgs.append((topic, data))
-    #sio.emit(topic, data=json.dumps(data), skip_sid=True)
+    msgs[topic] = data
 
 bridge.register_server(send)
 
@@ -35,7 +35,7 @@ def telemetry(sid, data):
         bridge.publish_dbw_status(dbw_enable)
     bridge.publish_odometry(data)
     for i in range(len(msgs)):
-        topic, data = msgs.pop(0)
+        topic, data = msgs.popitem()
         sio.emit(topic, data=data, skip_sid=True)
 
 @sio.on('control')
@@ -48,15 +48,18 @@ def obstacle(sid, data):
 
 @sio.on('lidar')
 def obstacle(sid, data):
-    bridge.publish_lidar(data)
-
+    #bridge.publish_lidar(data)
+    pass
+    
 @sio.on('trafficlights')
 def trafficlights(sid, data):
-    bridge.publish_traffic(data)
+    #bridge.publish_traffic(data)
+    pass
 
 @sio.on('image')
 def image(sid, data):
-    bridge.publish_camera(data)
+    #bridge.publish_camera(data)
+    pass
 
 if __name__ == '__main__':
 
