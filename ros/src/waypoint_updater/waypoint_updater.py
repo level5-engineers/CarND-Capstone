@@ -81,8 +81,10 @@ class WaypointUpdater(object):
                 ow = waypoint.pose.pose.orientation.w
                 #rospy.loginfo([ox,oy,oz,ow])
                 T = tf.transformations.quaternion_matrix([ox,oy,oz,ow])
-                orients.append(50.0*(T[0:2,0]))
-                rospy.loginfo(tf.transformations.euler_from_quaternion([ox,oy,oz,ow]))
+                orients.append(50.0 * (T[0:2, 0]))
+                #eulers = tf.transformations.euler_from_quaternion([ox,oy,oz,ow])
+                #orients.append( [50.0*math.cos(eulers[2]),50.0*math.sin(eulers[2])])
+                #rospy.loginfo(tf.transformations.euler_from_quaternion([ox,oy,oz,ow]))
             plt.plot(x,y)
             ax = plt.gca()
             for i in range(0,len(x),100):
