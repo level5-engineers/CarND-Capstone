@@ -7,6 +7,9 @@ from styx_msgs.msg import Lane, Waypoint
 import math
 import tf
 
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
 
@@ -39,6 +42,7 @@ class WaypointUpdater(object):
 
         # TODO: Add other member variables you need below
         self.TrG2V = 0 #transformation globe 2 vehicle
+        self.FirstTime = True
 
         rospy.spin()
 
@@ -57,10 +61,35 @@ class WaypointUpdater(object):
         t2 = tf.transformations.quaternion_matrix([qx,qy,qz,qw])
         Tg2v = tf.transformations.concatenate_matrices(t2,t1)
         self.TrG2V = tf.transformations.inverse_matrix(Tg2v)
-        rospy.loginfo(self.TrG2V)
+        #rospy.loginfo(self.TrG2V)
 
     def waypoints_cb(self, waypoints):
         # TODO: Implement
+        #waypointsInVehicleFrame = Lane()
+        #for waypoint in waypoints.waypoints:
+        #    pass
+        if self.FirstTime is True:
+            self.FirstTime = False
+            x, y, z, orients = [], [], [], []
+            for waypoint in waypoints.waypoints:
+                x.append(waypoint.pose.pose.position.x)
+                y.append(waypoint.pose.pose.position.y)
+                z.append(waypoint.pose.pose.position.z)
+                ox = waypoint.pose.pose.orientation.x
+                oy = waypoint.pose.pose.orientation.y
+                oz = waypoint.pose.pose.orientation.z
+                ow = waypoint.pose.pose.orientation.w
+                #rospy.loginfo([ox,oy,oz,ow])
+                T = tf.transformations.quaternion_matrix([ox,oy,oz,ow])
+                orients.append(50.0*(T[0:2,0]))
+                rospy.loginfo(tf.transformations.euler_from_quaternion([ox,oy,oz,ow]))
+            plt.plot(x,y)
+            ax = plt.gca()
+            for i in range(0,len(x),100):
+                ax.add_patch(patches.Arrow(x[i],y[i],orients[i][0],orients[i][1],width=10))
+                #rospy.loginfo([x[i],y[i],orients[i][0],orients[i][1]])
+            plt.axis('equal')
+            plt.show()
         pass
 
     def traffic_cb(self, msg):
