@@ -26,7 +26,7 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 5 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
 
 
 class WaypointUpdater(object):
@@ -77,6 +77,10 @@ class WaypointUpdater(object):
             self.init_WPs(waypoints.waypoints)
             #self.plot_waypoints(waypoints)
         self.find_final_WP()
+        final_WP = Lane()
+        for i in self.found_idx:
+            final_WP.waypoints.append(self.WP_origin[i])
+        self.final_waypoints_pub.publish(final_WP)
         #rospy.logwarn("wp end")
 
     def init_WPs(self,waypoints):
@@ -89,25 +93,22 @@ class WaypointUpdater(object):
             Tg2wp = tf.transformations.inverse_matrix(Twp2g)
             pos = np.array([p.x, p.y, p.z,1.0])
             self.WPs.append( [pos , Tg2wp, Twp2g] )
+            self.WP_origin = waypoints
 
     def find_final_WP(self):
         self.found_idx = []
         idx = self.find_closest_WP()
         self.found_idx.append(idx)
+        direction = np.sign(np.vdot(self.TrV2G[:3,0] , self.WPs[idx][2][:3,0]))
         if idx is not None:
             if (LOOKAHEAD_WPS>1):
                 for i in range(1,LOOKAHEAD_WPS):
-                    idx = self.find_closest_WP(TFG2Target=self.WPs[idx][1],excludeIDX=self.found_idx)
-                    if idx is None:
-                        break
+                    idx = idx + int(direction)
+                    idx = idx % len(self.WPs)
                     self.found_idx.append(idx)
-
-            #rospy.logwarn(idx)
-            #pass
         else:  # handle this error. Maybe backward motion??
             rospy.logwarn("There is no waypoint in front of the car.")
-            #pass
-        rospy.logwarn(self.found_idx)
+        #rospy.logwarn(["indeces: ",self.found_idx])
         self.plot()
 
     def plot(self):
