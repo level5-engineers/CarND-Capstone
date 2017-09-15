@@ -6,6 +6,7 @@ from styx_msgs.msg import Lane, Waypoint
 
 import math
 import tf
+import numpy as np
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -25,7 +26,7 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 10 # Number of waypoints we will publish. You can change this number
 
 
 class WaypointUpdater(object):
@@ -42,26 +43,24 @@ class WaypointUpdater(object):
 
         # TODO: Add other member variables you need below
         self.TrG2V = 0 #transformation globe 2 vehicle
+        self.TrV2G = 0
         self.FirstTime = True
-
+        self.waypointsInVehicleCoordinate = None
+        self.WPs = []   # as list of transfer matrices of first position
+                                                        # second globe to wp
+        self.posi = None
+        plt.ion()
         rospy.spin()
 
     def pose_cb(self, msg):
         # TODO: Implement
-        px = msg.pose.position.x
-        py = msg.pose.position.y
-        pz = msg.pose.position.z
-
-        qx = msg.pose.orientation.x
-        qy = msg.pose.orientation.y
-        qz = msg.pose.orientation.z
-        qw = msg.pose.orientation.w
-
-        t1 = tf.transformations.translation_matrix((px, py, pz))
-        t2 = tf.transformations.quaternion_matrix([qx,qy,qz,qw])
-        Tg2v = tf.transformations.concatenate_matrices(t2,t1)
-        self.TrG2V = tf.transformations.inverse_matrix(Tg2v)
-        #rospy.loginfo(self.TrG2V)
+        p = msg.pose.position
+        self.posi = p
+        o = msg.pose.orientation
+        t1 = tf.transformations.translation_matrix([p.x, p.y, p.z])
+        t2 = tf.transformations.quaternion_matrix([o.x,o.y,o.z,o.w])
+        self.TrV2G = tf.transformations.concatenate_matrices(t1,t2)
+        self.TrG2V = tf.transformations.inverse_matrix(self.TrV2G)
 
     def waypoints_cb(self, waypoints):
         # TODO: Implement
@@ -70,29 +69,52 @@ class WaypointUpdater(object):
         #    pass
         if self.FirstTime is True:
             self.FirstTime = False
-            x, y, z, orients = [], [], [], []
-            for waypoint in waypoints.waypoints:
-                x.append(waypoint.pose.pose.position.x)
-                y.append(waypoint.pose.pose.position.y)
-                z.append(waypoint.pose.pose.position.z)
-                ox = waypoint.pose.pose.orientation.x
-                oy = waypoint.pose.pose.orientation.y
-                oz = waypoint.pose.pose.orientation.z
-                ow = waypoint.pose.pose.orientation.w
-                #rospy.loginfo([ox,oy,oz,ow])
-                T = tf.transformations.quaternion_matrix([ox,oy,oz,ow])
-                orients.append(50.0 * (T[0:2, 0]))
-                #eulers = tf.transformations.euler_from_quaternion([ox,oy,oz,ow])
-                #orients.append( [50.0*math.cos(eulers[2]),50.0*math.sin(eulers[2])])
-                #rospy.loginfo(tf.transformations.euler_from_quaternion([ox,oy,oz,ow]))
-            plt.plot(x,y)
-            ax = plt.gca()
-            for i in range(0,len(x),100):
-                ax.add_patch(patches.Arrow(x[i],y[i],orients[i][0],orients[i][1],width=10))
-                #rospy.loginfo([x[i],y[i],orients[i][0],orients[i][1]])
-            plt.axis('equal')
-            plt.show()
-        pass
+            self.init_WPs(waypoints.waypoints)
+            #self.plot_waypoints(waypoints)
+        self.find_final_WP()
+
+    def init_WPs(self,waypoints):
+        for waypoint in waypoints:
+            p = waypoint.pose.pose.position
+            o = waypoint.pose.pose.orientation
+            t1 = tf.transformations.translation_matrix((p.x, p.y, p.z))
+            t2 = tf.transformations.quaternion_matrix([o.x, o.y, o.z, o.w])
+            Twp2g = tf.transformations.concatenate_matrices(t2, t1)
+            Tg2wp = tf.transformations.inverse_matrix(Twp2g)
+            pos = np.array([p.x, p.y, p.z,1.0])
+            pos.reshape((4,1))
+            self.WPs.append( [pos , Tg2wp] )
+
+    def find_final_WP(self):
+        idx = self.find_closest_WP_2_car()
+        if idx is not None:
+            rospy.logwarn(idx)
+            #pass
+        else:  # handle this error. Maybe backward motion??
+            rospy.logwarn("There is no waypoint in front of the car.")
+            #pass
+        self.plot()
+
+    def plot(self):
+        plt.clf()
+        plt.plot([x[0][0] for x in self.WPs],
+                 [x[0][1] for x in self.WPs])
+        plt.plot(self.TrV2G[0,3],self.TrV2G[1,3],marker = 'o',color='green')
+        plt.plot(self.posi.x, self.posi.y, marker='o',color='red')
+        plt.axis('equal')
+        plt.pause(0.001)
+
+    def find_closest_WP_2_car(self):
+        min_dist = float('inf')
+        idx = None
+        for i , WP in enumerate(self.WPs):
+            posWP = WP[0]
+            wpInVH = self.TrG2V.dot(posWP)
+            dst = np.linalg.norm(wpInVH[:3])
+            if (wpInVH[0] > 0.0 and dst < min_dist):
+                min_dist = dst
+                idx = i
+        return idx
 
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
@@ -115,6 +137,40 @@ class WaypointUpdater(object):
             dist += dl(waypoints[wp1].pose.pose.position, waypoints[i].pose.pose.position)
             wp1 = i
         return dist
+
+    def Transfer2VehicleCoordinate(self,waypoints):
+        self.waypointsInVehicleCoordinate = []
+        for waypoint in waypoints.waypoints:
+            x = waypoint.pose.pose.position.x
+            y = waypoint.pose.pose.position.y
+            z = waypoint.pose.pose.position.z
+
+            pos = np.array([x,y,z],np.float32)
+            self.waypointsInVehicleCoordinate.append(self.TrG2V * pos)
+
+    def plot_waypoints(self,waypoints):
+        x, y, z, T = [], [], [], []
+        for waypoint in waypoints.waypoints:
+            x.append(waypoint.pose.pose.position.x)
+            y.append(waypoint.pose.pose.position.y)
+            z.append(waypoint.pose.pose.position.z)
+            ox = waypoint.pose.pose.orientation.x
+            oy = waypoint.pose.pose.orientation.y
+            oz = waypoint.pose.pose.orientation.z
+            ow = waypoint.pose.pose.orientation.w
+            # rospy.loginfo([ox,oy,oz,ow])
+            T.append( tf.transformations.quaternion_matrix([ox, oy, oz, ow]) )
+            # eulers = tf.transformations.euler_from_quaternion([ox,oy,oz,ow])
+            # orients.append( [50.0*math.cos(eulers[2]),50.0*math.sin(eulers[2])])
+            # rospy.loginfo(tf.transformations.euler_from_quaternion([ox,oy,oz,ow]))
+        plt.plot(x, y)
+        ax = plt.gca()
+        for i in range(0, len(x), 100):
+            ax.add_patch(patches.Arrow(x[i], y[i], 50 * T[i][0, 0], 50 * T[i][1, 0], width=10))
+            ax.add_patch(patches.Arrow(x[i], y[i], 50 * T[i][0, 1], 50 * T[i][1, 1], width=10))
+            # rospy.loginfo([x[i],y[i],orients[i][0],orients[i][1]])
+        plt.axis('equal')
+        plt.show()
 
 
 if __name__ == '__main__':
