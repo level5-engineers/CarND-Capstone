@@ -26,7 +26,7 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 10 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 5 # Number of waypoints we will publish. You can change this number
 
 
 class WaypointUpdater(object):
@@ -55,6 +55,7 @@ class WaypointUpdater(object):
         rospy.spin()
 
     def pose_cb(self, msg):
+        #rospy.logwarn("pose start")
         # TODO: Implement
         p = msg.pose.position
         self.posi = p
@@ -63,8 +64,10 @@ class WaypointUpdater(object):
         t2 = tf.transformations.quaternion_matrix([o.x,o.y,o.z,o.w])
         self.TrV2G = tf.transformations.concatenate_matrices(t1,t2)
         self.TrG2V = tf.transformations.inverse_matrix(self.TrV2G)
+        #rospy.logwarn("pose end")
 
     def waypoints_cb(self, waypoints):
+        #rospy.logwarn("wp start")
         # TODO: Implement
         #waypointsInVehicleFrame = Lane()
         #for waypoint in waypoints.waypoints:
@@ -74,6 +77,7 @@ class WaypointUpdater(object):
             self.init_WPs(waypoints.waypoints)
             #self.plot_waypoints(waypoints)
         self.find_final_WP()
+        #rospy.logwarn("wp end")
 
     def init_WPs(self,waypoints):
         for waypoint in waypoints:
@@ -84,14 +88,12 @@ class WaypointUpdater(object):
             Twp2g = tf.transformations.concatenate_matrices(t2, t1)
             Tg2wp = tf.transformations.inverse_matrix(Twp2g)
             pos = np.array([p.x, p.y, p.z,1.0])
-            pos.reshape((4,1))
             self.WPs.append( [pos , Tg2wp, Twp2g] )
 
     def find_final_WP(self):
         self.found_idx = []
         idx = self.find_closest_WP()
         self.found_idx.append(idx)
-        #direction = self.WPs[idx][2][:,0].dot()
         if idx is not None:
             if (LOOKAHEAD_WPS>1):
                 for i in range(1,LOOKAHEAD_WPS):
@@ -105,6 +107,7 @@ class WaypointUpdater(object):
         else:  # handle this error. Maybe backward motion??
             rospy.logwarn("There is no waypoint in front of the car.")
             #pass
+        rospy.logwarn(self.found_idx)
         self.plot()
 
     def plot(self):
@@ -118,7 +121,7 @@ class WaypointUpdater(object):
         plt.axis('equal')
         plt.pause(0.001)
 
-    def find_closest_WP(self,direction=1,TFG2Target=None,excludeIDX=[]):
+    def find_closest_WP(self,TFG2Target=None,excludeIDX=[]):
         """"
         Finds the closest waypoint to the target, The target is given as the transfer function from the globe
         to the target. (TFG2Target). If nothing is given, it will find closest waypint to the car.
@@ -132,17 +135,10 @@ class WaypointUpdater(object):
         for i , WP in enumerate(self.WPs):
             if i not in excludeIDX:
                 posWP = WP[0]
-                Tr = None
-                if (TFG2Target is None):    # transfer to Vehicle Frame
-                    Tr = self.TrG2V
-                else:
-                    Tr = TFG2Target         # Transfer to WP Frame
+                Tr = self.TrG2V
                 wpInTarget = Tr.dot(posWP)
                 dst = np.linalg.norm(wpInTarget[:3])
-                if (direction == 1 and wpInTarget[0] > 0.0 and dst < min_dist):
-                    min_dist = dst
-                    idx = i
-                elif (direction == -1 and wpInTarget[0] < 0.0 and dst < min_dist):
+                if (wpInTarget[0] > 0.0 and dst < min_dist):
                     min_dist = dst
                     idx = i
         return idx
