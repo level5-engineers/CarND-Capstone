@@ -48,6 +48,8 @@ class WaypointUpdater(object):
         self.waypointsInVehicleCoordinate = None
         self.WPs = []   # as list of transfer matrices of first position
                                                         # second globe to wp
+        self.found_idx = []
+
         self.posi = None
         plt.ion()
         rospy.spin()
@@ -83,12 +85,22 @@ class WaypointUpdater(object):
             Tg2wp = tf.transformations.inverse_matrix(Twp2g)
             pos = np.array([p.x, p.y, p.z,1.0])
             pos.reshape((4,1))
-            self.WPs.append( [pos , Tg2wp] )
+            self.WPs.append( [pos , Tg2wp, Twp2g] )
 
     def find_final_WP(self):
-        idx = self.find_closest_WP_2_car()
+        self.found_idx = []
+        idx = self.find_closest_WP()
+        self.found_idx.append(idx)
+        #direction = self.WPs[idx][2][:,0].dot()
         if idx is not None:
-            rospy.logwarn(idx)
+            if (LOOKAHEAD_WPS>1):
+                for i in range(1,LOOKAHEAD_WPS):
+                    idx = self.find_closest_WP(TFG2Target=self.WPs[idx][1],excludeIDX=self.found_idx)
+                    if idx is None:
+                        break
+                    self.found_idx.append(idx)
+
+            #rospy.logwarn(idx)
             #pass
         else:  # handle this error. Maybe backward motion??
             rospy.logwarn("There is no waypoint in front of the car.")
@@ -99,21 +111,40 @@ class WaypointUpdater(object):
         plt.clf()
         plt.plot([x[0][0] for x in self.WPs],
                  [x[0][1] for x in self.WPs])
+        plt.plot([self.WPs[idx][0][0] for idx in self.found_idx],
+                 [self.WPs[idx][0][1] for idx in self.found_idx],color='red')
         plt.plot(self.TrV2G[0,3],self.TrV2G[1,3],marker = 'o',color='green')
-        plt.plot(self.posi.x, self.posi.y, marker='o',color='red')
+        #plt.plot(self.posi.x, self.posi.y, marker='o',color='red')
         plt.axis('equal')
         plt.pause(0.001)
 
-    def find_closest_WP_2_car(self):
+    def find_closest_WP(self,direction=1,TFG2Target=None,excludeIDX=[]):
+        """"
+        Finds the closest waypoint to the target, The target is given as the transfer function from the globe
+        to the target. (TFG2Target). If nothing is given, it will find closest waypint to the car.
+        excludeIDX is a list of idx of waypoints to be ignored.
+        
+        Direction should be +/-1.   +1: when it should look in front of the target
+                                    -1: when it should look behind og the target
+        """""
         min_dist = float('inf')
         idx = None
         for i , WP in enumerate(self.WPs):
-            posWP = WP[0]
-            wpInVH = self.TrG2V.dot(posWP)
-            dst = np.linalg.norm(wpInVH[:3])
-            if (wpInVH[0] > 0.0 and dst < min_dist):
-                min_dist = dst
-                idx = i
+            if i not in excludeIDX:
+                posWP = WP[0]
+                Tr = None
+                if (TFG2Target is None):    # transfer to Vehicle Frame
+                    Tr = self.TrG2V
+                else:
+                    Tr = TFG2Target         # Transfer to WP Frame
+                wpInTarget = Tr.dot(posWP)
+                dst = np.linalg.norm(wpInTarget[:3])
+                if (direction == 1 and wpInTarget[0] > 0.0 and dst < min_dist):
+                    min_dist = dst
+                    idx = i
+                elif (direction == -1 and wpInTarget[0] < 0.0 and dst < min_dist):
+                    min_dist = dst
+                    idx = i
         return idx
 
     def traffic_cb(self, msg):
@@ -153,13 +184,10 @@ class WaypointUpdater(object):
         for waypoint in waypoints.waypoints:
             x.append(waypoint.pose.pose.position.x)
             y.append(waypoint.pose.pose.position.y)
-            z.append(waypoint.pose.pose.position.z)
-            ox = waypoint.pose.pose.orientation.x
-            oy = waypoint.pose.pose.orientation.y
-            oz = waypoint.pose.pose.orientation.z
-            ow = waypoint.pose.pose.orientation.w
+            #z.append(waypoint.pose.pose.position.z)
+            o = waypoint.pose.pose.orientation
             # rospy.loginfo([ox,oy,oz,ow])
-            T.append( tf.transformations.quaternion_matrix([ox, oy, oz, ow]) )
+            T.append( tf.transformations.quaternion_matrix([o.x, o.y, o.z, o.w]) )
             # eulers = tf.transformations.euler_from_quaternion([ox,oy,oz,ow])
             # orients.append( [50.0*math.cos(eulers[2]),50.0*math.sin(eulers[2])])
             # rospy.loginfo(tf.transformations.euler_from_quaternion([ox,oy,oz,ow]))
