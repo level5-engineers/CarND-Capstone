@@ -53,11 +53,21 @@ class DBWNode(object):
         self.brake_pub = rospy.Publisher('/vehicle/brake_cmd',
                                          BrakeCmd, queue_size=1)
 
-        self.controller = Controller()
-        
+        parms = {
+            'wheel_base'      : wheel_base,
+            'steer_ratio'     : steer_ratio,
+            'min_velocity'    : 0.,
+            'max_lat_accel'   : max_lat_accel,
+            'max_steer_angle' : max_steer_angle,
+            'decel_limit'     : decel_limit,
+            'accel_limit'     : accel_limit
+        }
+        self.controller = Controller(**parms)
+ 
         self.current_command = None
         self.current_velocity = None
         self.dbw_enabled = False
+        self.oneshot = False  # ISSUE ONLY ONE THROTTLE COMMAND
         
         rospy.Subscriber('/twist_cmd', TwistStamped, self.callback_twist_cmd)
         rospy.Subscriber('/current_velocity', TwistStamped, self.callback_current_velocity)
@@ -65,17 +75,20 @@ class DBWNode(object):
         
         self.loop()
 
-    # TODO: Get predicted throttle, brake, and steering using `controller` object
-    # Controller class is not yet defined, so we are just simply moving forward 
-    # full throttle, without steering or braking
+    # Get predicted throttle, brake, and steering using `controller` object
+    # Controller class is roughly defined, so we are simply moving forward 
+    # 0.1 throttle, attempting to steer. Braking is OFF
     def loop(self):
-        rate = rospy.Rate(4) # 50Hz
+        rate = rospy.Rate(2) # 2Hz
         while not rospy.is_shutdown():
             if (self.current_command is not None) and (self.current_velocity is not None):
-                # TODO: we need to get the current velocity, target velocity, and target angle and pass into control
-                throttle, brake, steering = self.controller.control()
+                # get the current velocity, target velocity, and target angle and pass into control
+                linear_target  = self.current_command.twist.linear.x;
+                angular_target = self.current_command.twist.angular.z;
+                linear_current = self.current_velocity.twist.linear.x;
+                throttle, brake, steering = self.controller.control(linear_target, angular_target, linear_current)
                 
-                # TODO: Publish the control commands if dbw is enabled
+                # Publish the control commands if dbw is enabled
                 #if self.dbw_enabled:
                 rospy.loginfo("t: %.2f, b: %.2f, s: %.2f", throttle, brake, steering)
                 self.publish(throttle, brake, steering) 
@@ -86,8 +99,10 @@ class DBWNode(object):
         tcmd.enable = True
         tcmd.pedal_cmd_type = ThrottleCmd.CMD_PERCENT
         tcmd.pedal_cmd = throttle
-        self.throttle_pub.publish(tcmd)
-
+        #TODO: test throttle
+        if self.oneshot == False:
+            self.throttle_pub.publish(tcmd)    # ISSUE ONLY ONE THROTTLE COMMAND
+            self.oneshot = True
         
         scmd = SteeringCmd()
         scmd.enable = True
@@ -98,7 +113,8 @@ class DBWNode(object):
         bcmd.enable = True
         bcmd.pedal_cmd_type = BrakeCmd.CMD_TORQUE
         bcmd.pedal_cmd = brake
-        self.brake_pub.publish(bcmd)
+        #TODO: test braking
+        #self.brake_pub.publish(bcmd)   NOT PUBLISHING BRAKING AT THIS TIME
 
     def callback_twist_cmd(self, msg):
         self.current_command = msg
