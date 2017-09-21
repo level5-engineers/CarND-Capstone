@@ -11,7 +11,7 @@ from conf import conf
 
 sio = socketio.Server()
 app = Flask(__name__)
-bridge = Bridge(conf)
+
 msgs = {}
 # To mitigate simulator lag, see
 # https://github.com/udacity/self-driving-car-sim/issues/53
@@ -25,7 +25,7 @@ def connect(sid, environ):
 def send(topic, data):
     msgs[topic] = data
 
-bridge.register_server(send)
+bridge = Bridge(conf, send)
 
 @sio.on('telemetry')
 def telemetry(sid, data):

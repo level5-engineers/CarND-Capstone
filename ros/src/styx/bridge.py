@@ -36,8 +36,9 @@ TYPE = {
 
 
 class Bridge(object):
-    def __init__(self, conf):
+    def __init__(self, conf, server):
         rospy.init_node('styx_server')
+        self.server = server
         self.vel = 0.
         self.yaw = None
         self.angular_vel = 0.
@@ -57,9 +58,6 @@ class Bridge(object):
         while rospy.get_time() == 0:
             rospy.spin()
         self.prev_time = rospy.get_time()
-
-    def register_server(self, server):
-        self.server = server
 
     def create_light(self, x, y, z, yaw, state):
         light = TrafficLight()
