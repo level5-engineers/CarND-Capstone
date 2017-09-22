@@ -62,11 +62,12 @@ class WaypointUpdater(object):
             return
         # get the index of the closest waypoint
         idx = assist.nearest_waypoint(self.wp, self.x, self.y, self.t)
-        rospy.loginfo("idx: %d, x: %.2f, y: %.2f, t: %.2f", idx, self.x, self.y, self.t)
+        #rospy.loginfo("idx: %d, x: %.2f, y: %.2f, t: %.2f", idx, self.x, self.y, self.t)
         
         # make a lane object
         lane = Lane()
         
+        numPts = len(self.wp.waypoints)
         # and add a list of waypoints
         for _ in range(LOOKAHEAD_WPS):
             wp = self.wp.waypoints[idx]
@@ -78,7 +79,7 @@ class WaypointUpdater(object):
             
             # append the point
             lane.waypoints.append(new_point)
-            idx += 1
+            idx = (idx + 1) % numPts
             
         # send
         self.final_waypoints_pub.publish(lane)

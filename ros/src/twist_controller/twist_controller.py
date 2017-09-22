@@ -18,6 +18,6 @@ class Controller(object):
     #TODO: Rough implementation - needs refinement
     def control(self, linear_velocity_target, angular_velocity_target, linear_velocity_current):
         brake = 0.0
-        throttle = 0.3
+        throttle = 0.15
         steering = self.yawController.get_steering(linear_velocity_target, angular_velocity_target, linear_velocity_current)
         return throttle, brake, steering

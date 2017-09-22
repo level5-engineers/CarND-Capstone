@@ -90,9 +90,9 @@ class DBWNode(object):
                 throttle, brake, steering = self.controller.control(linear_target, angular_target, linear_current)
                 
                 # Publish the control commands if dbw is enabled
-                #if self.dbw_enabled:
-                rospy.loginfo("t: %.2f, b: %.2f, s: %.2f, t: %.2f", throttle, brake, steering, angular_target)
-                self.publish(throttle, brake, steering) 
+                if self.dbw_enabled:
+                    #rospy.loginfo("t: %.2f, b: %.2f, s: %.2f, t: %.2f", throttle, brake, steering, angular_target)
+                    self.publish(throttle, brake, steering) 
             rate.sleep()
 
     def publish(self, throttle, brake, steer):
