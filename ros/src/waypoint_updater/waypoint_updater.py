@@ -23,7 +23,7 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 25 # Number of waypoints to publish. (Can be changed.)
+LOOKAHEAD_WPS = 50 # Number of waypoints to publish. (Can be changed.)
 
 
 class WaypointUpdater(object):
@@ -43,6 +43,7 @@ class WaypointUpdater(object):
         self.y = None
         self.t = None
         self.v = 4.0
+        self.wp = None
         
         # do not exit, await shutdown
         rospy.spin()
@@ -55,21 +56,20 @@ class WaypointUpdater(object):
         quat = [o.x, o.y, o.z, o.w]
         euler = tf.transformations.euler_from_quaternion(quat)
         self.t = euler[2]
-
-    # TODO: refine this initial implementation
-    def callback_waypoints(self, waypoints):
-        if self.x is None:
-            return
         
+        # JWD: moved update loop into this callback
+        if self.wp is None:
+            return
         # get the index of the closest waypoint
-        idx = assist.nearest_waypoint(waypoints, self.x, self.y, self.t)
+        idx = assist.nearest_waypoint(self.wp, self.x, self.y, self.t)
+        rospy.loginfo("idx: %d, x: %.2f, y: %.2f, t: %.2f", idx, self.x, self.y, self.t)
         
         # make a lane object
         lane = Lane()
         
         # and add a list of waypoints
         for _ in range(LOOKAHEAD_WPS):
-            wp = waypoints.waypoints[idx]
+            wp = self.wp.waypoints[idx]
             new_point = Waypoint()
             new_point.pose = wp.pose
             
@@ -83,6 +83,10 @@ class WaypointUpdater(object):
         # send
         self.final_waypoints_pub.publish(lane)
 
+
+    # JWD: called once
+    def callback_waypoints(self, waypoints):
+        self.wp = waypoints
 
     def callback_traffic(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
