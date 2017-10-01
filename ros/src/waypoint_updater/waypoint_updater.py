@@ -179,7 +179,6 @@ class WaypointUpdater(object):
             wp1 = i
         return dist
     
-    def 
 
 
 if __name__ == '__main__':
