@@ -1,4 +1,4 @@
-red
-green
 yellow
 none
+red
+green
