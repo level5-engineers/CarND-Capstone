@@ -179,7 +179,18 @@ class WaypointUpdater(object):
             wp1 = i
         return dist
     
-
+    def red_light_visible():
+        pass
+    
+    def destination_visible():
+        pass
+    
+    def final_waypoint_details():
+        return []
+    
+    def steps():
+        return []
+    
 
 if __name__ == '__main__':
     try:
