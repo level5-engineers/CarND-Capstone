@@ -45,12 +45,20 @@ class WaypointUpdater(object):
         
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
         
-        # other member variables we need
-        self.x = None
-        self.y = None
-        self.t = None
-        self.v = 10.0 #mps
-        self.wp = None
+        # current coords of car
+        self.x_current = None
+        self.y_current = None
+        
+        # t = theta (yaw)
+        self.theta_current = None
+        
+        # max target velocity
+        self.max_velocity = 10.0 #mps
+        
+        # list of base waypoints
+        self.base_waypoints = None
+        
+        # stop line for the nearest red/yellow light, and if green then None
         self.red_light_waypoint = None
         
         #JWD DEBUG
@@ -60,58 +68,78 @@ class WaypointUpdater(object):
         #rospy.spin()
         self.loop()
 
+    # Distance between two points
+    # p is the position structure
     def distance2(self, p1, p2):
         x, y = p1.x - p2.x, p1.y - p2.y
         return math.sqrt(x*x + y*y)
  
+    # Main logic
     def loop(self):
         rate = rospy.Rate(1./3) # Update once every 3 seconds
         while not rospy.is_shutdown():
-            if (self.wp is not None) and (self.x is not None):
+            # we have base waypoints and current position
+            if (self.base_waypoints is not None) and (self.x_current is not None):
                 # JWD: moved update loop into this callback
-                if self.wp is None:
-                    return
+                #if self.wp is None:
+                #    return
+                
                 # get the index of the closest waypoint
-                idx = assist.nearest_waypoint(self.wp, self.x, self.y, self.t)
+                nearest_waypoint = assist.nearest_waypoint(self.base_waypoints, self.x_current, self.y_current, self.theta_current)
+                
                 #rospy.loginfo("idx: %d, x: %.2f, y: %.2f, t: %.2f", idx, self.x, self.y, self.t)
                 
                 # make a lane object
                 lane = Lane()
                 
-                numPts = len(self.wp.waypoints)
+                # number of base waypoints
+                numPts = len(self.base_waypoints.waypoints)
+                
                 # and add a list of waypoints
                 for _ in range(LOOKAHEAD_WPS):
-                    wp = self.wp.waypoints[idx]
+                    # nearest waypoint object
+                    wp = self.base_waypoints.waypoints[nearest_waypoint]
+                    
                     new_point = Waypoint()
                     new_point.pose = wp.pose
                     
                     # set the velocity at each waypoint
-                    new_point.twist.twist.linear.x = self.v
+                    
+                    # X direction is forward from the car at any position regardless of orientation or position
+                    new_point.twist.twist.linear.x = self.target_velocity
+                    
+                    #**** Red light *****
                     if self.red_light_waypoint is not None:
-                        if (self.current_velocity is not None) and (idx <= self.red_light_waypoint):
+                        # If we have info on current vel and any waypoint is before the red light
+                        if (self.current_velocity is not None) and (nearest_waypoint <= self.red_light_waypoint):
                             sidx = self.red_light_waypoint
-                            stopdist = self.distance2(wp.pose.pose.position, self.wp.waypoints[sidx].pose.pose.position)
+                            
+                            stopdist = self.distance2(wp.pose.pose.position, self.base_waypoints.waypoints[sidx].pose.pose.position)
+                            
                             #vel = math.sqrt(2 * MAX_DECEL * stopdist) * 3.6
                             #if vel < 1.:
                             #    vel = 0.
                             #new_point.twist.twist.linear.x = min(vel, self.v)
                             currVel = self.current_velocity.twist.linear.x
+                            
                             if stopdist < 2.*currVel*currVel/(2.*MAX_DECEL):
                                 new_point.twist.twist.linear.x = 0.
                             else:
                                 if stopdist < 4.*currVel*currVel/(2.*MAX_DECEL):
-                                    new_point.twist.twist.linear.x = self.v / 2.
+                                    new_point.twist.twist.linear.x = self.target_velocity / 2.
                                 else:
-                                    new_point.twist.twist.linear.x = self.v
-                            rospy.loginfo("idx: %d, vel: %.2f, stopdist: %.2f", idx, new_point.twist.twist.linear.x, stopdist)
+                                    new_point.twist.twist.linear.x = self.target_velocity
+                            rospy.loginfo("idx: %d, vel: %.2f, stopdist: %.2f", nearest_waypoint, new_point.twist.twist.linear.x, stopdist)
                         else: # all points beyond the stop line
-                            new_point.twist.twist.linear.x = 0.
+                            new_point.twist.twist.linear.x = 0
                     
                     # append the point
                     lane.waypoints.append(new_point)
-                    idx = (idx + 1) % numPts
+                    # idx = index of next waypoint. If the track is a loop, the index will start again
+                    nearest_waypoint = (nearest_waypoint + 1) % numPts
                 
                 # send
+                # in latest version conditional on whether lane gets updated or not
                 self.final_waypoints_pub.publish(lane)
             rate.sleep()
 
@@ -150,6 +178,8 @@ class WaypointUpdater(object):
             dist += dl(waypoints[wp1].pose.pose.position, waypoints[i].pose.pose.position)
             wp1 = i
         return dist
+    
+    def 
 
 
 if __name__ == '__main__':
