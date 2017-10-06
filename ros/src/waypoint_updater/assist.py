@@ -43,6 +43,11 @@ def nearest_search(msg,x,y,t):
     lowest_dist = 9999999.9
     shorter_list = []
     start = 0
+    #print "Length of base waypoints: ", length, "\n"
+    #print "Center: ", center, "  "
+    #print msg.waypoints[center].pose.pose.position.x, msg.waypoints[center].pose.pose.position.y, "\n"
+    #print "Center-50:  ", msg.waypoints[center-50].pose.pose.position.x, msg.waypoints[center-50].pose.pose.position.y, "\n"
+    #print "Center+50:  ", msg.waypoints[center+50].pose.pose.position.x, msg.waypoints[center+50].pose.pose.position.y, "\n"
     if center < 40:
         shorter_list = msg.waypoints[0:70]
     elif center > 1860:
@@ -50,6 +55,7 @@ def nearest_search(msg,x,y,t):
         start = len-80
     else:
         shorter_list = msg.waypoints[center-40:center+40]
+        start = center-40
     for idx, wp in enumerate(shorter_list):
         delta = waypoint_distance(wp, x, y)
         if delta < lowest_dist:
@@ -57,7 +63,7 @@ def nearest_search(msg,x,y,t):
             nearest_idx = idx
     nearest_wp = msg.waypoints[nearest_idx + start]
     if not is_waypoint_positive(nearest_wp, x, y, t): # Is it in front?
-        nearest_idx = (nearest_idx + 1) % length
+        nearest_idx = (nearest_idx + start + 1) % length
     return nearest_idx
 
 def is_waypoint_positive(wp, x, y, t):

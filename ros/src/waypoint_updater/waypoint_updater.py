@@ -35,7 +35,7 @@ class WaypointUpdater(object):
         rospy.init_node('waypoint_updater')
 	rospy.loginfo("Hajime!!!")
 
-	    # current coords of car
+	# current coords of car
         self.x_current = None
         self.y_current = None
         self.theta_current = None
@@ -63,8 +63,8 @@ class WaypointUpdater(object):
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
         
         # do not exit, await shutdown
-        rospy.spin()
-        #self.loop()
+        #rospy.spin()
+        self.loop()
 
     # Main logic
     def loop(self):
@@ -79,15 +79,15 @@ class WaypointUpdater(object):
             # we have base waypoints and current position
             if (self.base_waypoints is not None) and (self.x_current is not None):
                 # get the index of the closest waypoint
-                nearest_waypoint = assist.nearest_waypoint(self.base_waypoints, x_current, y_current, theta_current)
-                #rospy.loginfo("Got the nearest waypoint: x=%.2f, y=%.2f", self.base_waypoints.waypoints[nearest_waypoint].pose.pose.position.x, self.base_waypoints.waypoints[nearest_waypoint].pose.pose.position.y)
+                nearest_waypoint = assist.nearest_search(self.base_waypoints, x_current, y_current, theta_current)
+                rospy.loginfo("Got the nearest waypoint: x=%.2f, y=%.2f", self.base_waypoints.waypoints[nearest_waypoint].pose.pose.position.x, self.base_waypoints.waypoints[nearest_waypoint].pose.pose.position.y)
                 
                 # make a lane object
                 lane = Lane()
                 
                 # number of base waypoints
                 numPts = len(self.base_waypoints.waypoints)
-                #rospy.loginfo("Alright, lets set the waypoints for this loop")
+                rospy.loginfo("Alright, lets set the waypoints for this loop")
                 # and add a list of waypoints
                 for _ in range(LOOKAHEAD_WPS):
                     # nearest waypoint object
@@ -106,7 +106,7 @@ class WaypointUpdater(object):
                     # append the point
                     lane.waypoints.append(new_point)
                     nearest_waypoint = (nearest_waypoint + 1) % numPts
-                    #rospy.loginfo("x=%.2f, y=%.2f, v=%.2f", new_point.pose.pose.position.x, new_point.pose.pose.position.y, new_point.twist.twist.linear.x)
+                    rospy.loginfo("x=%.2f, y=%.2f, v=%.2f", new_point.pose.pose.position.x, new_point.pose.pose.position.y, new_point.twist.twist.linear.x)
                 # --- for loop ends -----
                 
                 # Publish!
@@ -128,27 +128,8 @@ class WaypointUpdater(object):
 
     def get_base_waypoints(self, waypoints):
         self.base_waypoints = waypoints
-	rospy.loginfo("\n\nBase waypoints set")
-        minimum_distance = 999.0
-        maximum_distance = 0.0
-        highest_x = 0.0
-        length = len(waypoints.waypoints)
-        i = 0
-        while (i < length-2):
-            #dist = self.euclidean_distance(waypoints.waypoints[i].pose.pose.waypoints, position.waypoints[i+1].pose.pose.position)
-            rospy.loginfo("x=%.2f, y=%.2f", waypoints.waypoints[i].pose.pose.position.x, waypoints.waypoints[i].pose.pose.position.y)
-            dist = abs(waypoints.waypoints[i+1].pose.pose.position.x - waypoints.waypoints[i].pose.pose.position.x)
-            if dist < minimum_distance:
-                minimum_distance = dist
-            if dist > maximum_distance:
-                maximum_distance = dist
-            if waypoints.waypoints[i].pose.pose.position.x > highest_x:
-                highest_x = waypoints.waypoints[i].pose.pose.position.x
-            i = i + 1
-        rospy.loginfo("\nMinimum distance: %.2f", minimum_distance)
-        rospy.loginfo("Max distance: %.2f", maximum_distance)
-        rospy.loginfo("Highest X: %.2f \n\n", highest_x)
-        
+	rospy.loginfo("Base waypoints set.\n")
+        rospy.loginfo("x=%.2f, y=%.2f", waypoints.waypoints[0].pose.pose.position.x, waypoints.waypoints[0].pose.pose.position.y)
 
     def callback_traffic(self, msg):
         self.red_light_waypoint = msg.data-2 if msg.data >= 0 else None
