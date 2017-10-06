@@ -1,5 +1,7 @@
 #from styx_msgs.msg import TrafficLight
 import tensorflow as tf
+import cv2
+import numpy as np
 
 class TLClassifier(object):
     def __init__(self):
@@ -22,7 +24,14 @@ class TLClassifier(object):
 
     def load_image(self, filename):
         """Read in the image_data to be classified."""
-        return tf.gfile.FastGFile(filename, 'rb').read()
+        #return tf.gfile.FastGFile(filename, 'rb').read()
+
+        img = cv2.imread(filename)
+        image_data = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        image_data = cv2.resize(image_data, (224,224))
+        image_data = (image_data - 128.)/128.
+        image_data = np.reshape(image_data, (1,224,224,3))
+        return image_data
 
     def load_graph(self, filename):
         """Unpersists graph from file as default graph."""
