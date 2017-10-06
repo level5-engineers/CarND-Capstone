@@ -145,16 +145,16 @@ class WaypointUpdater(object):
 
     # TODO: refine this initial implementation
     def callback_pose(self, msg):
-        self.x = msg.pose.position.x
-        self.y = msg.pose.position.y
+        self.x_current = msg.pose.position.x
+        self.y_current = msg.pose.position.y
         o = msg.pose.orientation
         quat = [o.x, o.y, o.z, o.w]
         euler = tf.transformations.euler_from_quaternion(quat)
-        self.t = euler[2]
+        self.theta_current = euler[2]
 
     # JWD: called once
     def callback_waypoints(self, waypoints):
-        self.wp = waypoints
+        self.base_waypoints = waypoints
 
     def callback_traffic(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
@@ -179,8 +179,18 @@ class WaypointUpdater(object):
             wp1 = i
         return dist
     
-    def 
-
+    def red_light_visible():
+        pass
+    
+    def destination_visible():
+        pass
+    
+    def final_waypoint_details():
+        return []
+    
+    def steps():
+        return []
+    
 
 if __name__ == '__main__':
     try:
