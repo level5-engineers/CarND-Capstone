@@ -33,32 +33,31 @@ MAX_DECEL = 2.0
 class WaypointUpdater(object):
     def __init__(self):
         rospy.init_node('waypoint_updater')
-	rospy.loginfo("Hajime!!!")
+	    rospy.loginfo("Hajime!!!")
 
-	# current coords of car
+	    # current coords of car
         self.x_current = None
         self.y_current = None
-        
-        # t = theta (yaw)
         self.theta_current = None
         
-        # max target velocity
+        # max target velocity, constant
         self.target_velocity = 10.0 #mps
         
-        # list of base waypoints
+        # list of base waypoints, set only once
         self.base_waypoints = None
+        
+        # list of previous waypoints, gets updated after each loop
+        self.previous_waypoints = None
         
         # stop line for the nearest red/yellow light, and if green then None
         self.red_light_waypoint = None
         
-        #JWD DEBUG
+        # current velocity of car, set by subscriber
         self.current_velocity = None
         
-        rospy.Subscriber('/current_pose', PoseStamped, self.callback_pose)
-        rospy.Subscriber('/base_waypoints', Lane, self.callback_waypoints)
-        rospy.Subscriber('/current_velocity', TwistStamped, self.callback_current_velocity)
-
-        # TODO: Add a subscriber for /traffic_waypoint below
+        rospy.Subscriber('/current_pose', PoseStamped, self.get_current_position)
+        rospy.Subscriber('/base_waypoints', Lane, self.get_base_waypoints)
+        rospy.Subscriber('/current_velocity', TwistStamped, self.get_current_velocity)
         rospy.Subscriber('/traffic_waypoint', Int32, self.callback_traffic)
         
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
@@ -67,26 +66,20 @@ class WaypointUpdater(object):
         #rospy.spin()
         self.loop()
 
-    # Distance between two points
-    # p is the position structure
-    def distance2(self, p1, p2):
-        x, y = p1.x - p2.x, p1.y - p2.y
-        return math.sqrt(x*x + y*y)
- 
     # Main logic
     def loop(self):
         rate = rospy.Rate(5) # Update 5 times per second
+        
         while not rospy.is_shutdown():
+            x_current = self.x_current
+            y_current = self.y_current
+            theta_current = self.theta_current
+            
             # we have base waypoints and current position
             if (self.base_waypoints is not None) and (self.x_current is not None):
-                # JWD: moved update loop into this callback
-                #if self.wp is None:
-                #    return
-                
                 # get the index of the closest waypoint
-                nearest_waypoint = assist.nearest_waypoint(self.base_waypoints, self.x_current, self.y_current, self.theta_current)
+                nearest_waypoint = assist.nearest_waypoint(self.base_waypoints, x_current, y_current, theta_current)
                 rospy.loginfo("Got the nearest waypoint.")
-                #rospy.loginfo("idx: %d, x: %.2f, y: %.2f, t: %.2f", idx, self.x, self.y, self.t)
                 
                 # make a lane object
                 lane = Lane()
@@ -102,71 +95,41 @@ class WaypointUpdater(object):
                     new_point = Waypoint()
                     new_point.pose = wp.pose
                     
-                    # set the velocity at each waypoint
-                    
                     # X direction is forward from the car at any position regardless of orientation or position
                     new_point.twist.twist.linear.x = self.target_velocity
-                    """
-                    #**** Red light *****
-                    if self.red_light_waypoint is not None:
-                        # If we have info on current vel and any waypoint is before the red light
-                        if (self.current_velocity is not None) and (nearest_waypoint <= self.red_light_waypoint):
-                            sidx = self.red_light_waypoint
-                            
-                            stopdist = self.distance2(wp.pose.pose.position, self.base_waypoints.waypoints[sidx].pose.pose.position)
-                            
-                            #vel = math.sqrt(2 * MAX_DECEL * stopdist) * 3.6
-                            #if vel < 1.:
-                            #    vel = 0.
-                            #new_point.twist.twist.linear.x = min(vel, self.v)
-                            currVel = self.current_velocity.twist.linear.x
-                            
-                            if stopdist < 2.*currVel*currVel/(2.*MAX_DECEL):
-                                new_point.twist.twist.linear.x = 0.
-                            else:
-                                if stopdist < 4.*currVel*currVel/(2.*MAX_DECEL):
-                                    new_point.twist.twist.linear.x = self.target_velocity / 2.
-                                else:
-                                    new_point.twist.twist.linear.x = self.target_velocity
-                            #rospy.loginfo("idx: %d, vel: %.2f, stopdist: %.2f", nearest_waypoint, new_point.twist.twist.linear.x, stopdist)
-                        else: # all points beyond the stop line
-                            new_point.twist.twist.linear.x = 0
-                    """
+                    
                     # append the point
                     lane.waypoints.append(new_point)
-                    # idx = index of next waypoint. If the track is a loop, the index will start again
                     nearest_waypoint = (nearest_waypoint + 1) % numPts
+                # --- for loop ends -----
                 
-                # send
-		rospy.loginfo("Publishing points")
-                # in latest version conditional on whether lane gets updated or not
+                # Publish!
+		        rospy.loginfo("Publishing points")
                 self.final_waypoints_pub.publish(lane)
+                
+            # --- if ends, still in while loop ----
             rate.sleep()
+        rospy.loginfo("Shutdown.")
 
-    # TODO: refine this initial implementation
-    def callback_pose(self, msg):
+    def get_current_position(self, msg):
         self.x_current = msg.pose.position.x
         self.y_current = msg.pose.position.y
         o = msg.pose.orientation
         quat = [o.x, o.y, o.z, o.w]
         euler = tf.transformations.euler_from_quaternion(quat)
         self.theta_current = euler[2]
-	rospy.loginfo("Current position received")
+	    rospy.loginfo("Current position received")
 
-    # JWD: called once
-    def callback_waypoints(self, waypoints):
+    def get_base_waypoints(self, waypoints):
         self.base_waypoints = waypoints
-	rospy.loginfo("Base waypoints set")
+	    rospy.loginfo("Base waypoints set")
 
     def callback_traffic(self, msg):
-        # TODO: Callback for /traffic_waypoint message. Implement
         self.red_light_waypoint = msg.data-2 if msg.data >= 0 else None
-        #pass
 
-    #JWD DEBUG
-    def callback_current_velocity(self, msg):
+    def get_current_velocity(self, msg):
         self.current_velocity = msg
-	rospy.loginfo("Current velocity set")
+        rospy.loginfo("Current velocity set")
 
     def get_waypoint_velocity(self, waypoint):
         return waypoint.twist.twist.linear.x
@@ -174,7 +137,14 @@ class WaypointUpdater(object):
     def set_waypoint_velocity(self, waypoints, waypoint, velocity):
         waypoints[waypoint].twist.twist.linear.x = velocity
 
-    def distance(self, waypoints, wp1, wp2):
+    # Euclidean distance between two points
+    # p is the position structure
+    def euclidean_distance(self, p1, p2):
+        x, y = p1.x - p2.x, p1.y - p2.y
+        return math.sqrt(x*x + y*y)
+     
+    # Total distance between any two waypoints in the list, along the arc
+    def arc_distance(self, waypoints, wp1, wp2):
         dist = 0
         dl = lambda a, b: math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2  + (a.z-b.z)**2)
         for i in range(wp1, wp2+1):
