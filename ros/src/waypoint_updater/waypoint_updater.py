@@ -33,7 +33,7 @@ MAX_DECEL = 2.0
 class WaypointUpdater(object):
     def __init__(self):
         rospy.init_node('waypoint_updater')
-	    rospy.loginfo("Hajime!!!")
+	rospy.loginfo("Hajime!!!")
 
 	    # current coords of car
         self.x_current = None
@@ -74,12 +74,13 @@ class WaypointUpdater(object):
             x_current = self.x_current
             y_current = self.y_current
             theta_current = self.theta_current
+            current_velocity = self.current_velocity
             
             # we have base waypoints and current position
             if (self.base_waypoints is not None) and (self.x_current is not None):
                 # get the index of the closest waypoint
                 nearest_waypoint = assist.nearest_waypoint(self.base_waypoints, x_current, y_current, theta_current)
-                rospy.loginfo("Got the nearest waypoint.")
+                rospy.loginfo("Got the nearest waypoint: x=%.2f, y=%.2f", self.base_waypoints.waypoints[nearest_waypoint].pose.pose.position.x, self.base_waypoints.waypoints[nearest_waypoint].pose.pose.position.y)
                 
                 # make a lane object
                 lane = Lane()
@@ -96,15 +97,20 @@ class WaypointUpdater(object):
                     new_point.pose = wp.pose
                     
                     # X direction is forward from the car at any position regardless of orientation or position
-                    new_point.twist.twist.linear.x = self.target_velocity
+                    delta_v = 1.0
+                    if current_velocity >= self.target_velocity:
+                        delta_v = 0.0
+                    new_point.twist.twist.linear.x = current_velocity + delta_v
+                    current_velocity += delta_v
                     
                     # append the point
                     lane.waypoints.append(new_point)
                     nearest_waypoint = (nearest_waypoint + 1) % numPts
+                    rospy.loginfo("x=%.2f, y=%.2f, v=%.2f", new_point.pose.pose.position.x, new_point.pose.pose.position.y, new_point.twist.twist.linear.x)
                 # --- for loop ends -----
                 
                 # Publish!
-		        rospy.loginfo("Publishing points")
+		rospy.loginfo("Publishing points\n")
                 self.final_waypoints_pub.publish(lane)
                 
             # --- if ends, still in while loop ----
@@ -118,17 +124,17 @@ class WaypointUpdater(object):
         quat = [o.x, o.y, o.z, o.w]
         euler = tf.transformations.euler_from_quaternion(quat)
         self.theta_current = euler[2]
-	    rospy.loginfo("Current position received")
+	rospy.loginfo("Current position received")
 
     def get_base_waypoints(self, waypoints):
         self.base_waypoints = waypoints
-	    rospy.loginfo("Base waypoints set")
+	rospy.loginfo("Base waypoints set")
 
     def callback_traffic(self, msg):
         self.red_light_waypoint = msg.data-2 if msg.data >= 0 else None
 
     def get_current_velocity(self, msg):
-        self.current_velocity = msg
+        self.current_velocity = msg.twist.linear.x
         rospy.loginfo("Current velocity set")
 
     def get_waypoint_velocity(self, waypoint):
