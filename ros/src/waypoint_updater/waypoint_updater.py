@@ -87,7 +87,7 @@ class WaypointUpdater(object):
             # we have base waypoints and current position
             if (self.base_waypoints is not None) and (self.x_current is not None and (self.red_light_waypoint is not None)):
                 # get the index of the closest waypoint
-                nearest_waypoint_index = assist.nearest_search(self.base_waypoints, x_current, y_current, theta_current)
+                nearest_waypoint_index = assist.nearest_waypoint(self.base_waypoints, x_current, y_current, theta_current)
                 
                 nearest_waypoint = self.base_waypoints.waypoints[nearest_waypoint_index]
                 
@@ -99,6 +99,7 @@ class WaypointUpdater(object):
                 stop = self.stop_point(self.next_waypoints)
                 
                 if (stop is not None):
+                    rospy.loginfo("Red traffic light detected")
                     # Check if previous status was 'go'.
                     # If YES, then previous waypoints must be reset.
                     # ---Find n and delta_v
@@ -110,6 +111,7 @@ class WaypointUpdater(object):
                     target_velocity = 0.0
                     if (self.status == "go" or self.status is None):
                         [n, delta_v] = self.steps(current_velocity,target_velocity, stop)
+                        rospy.loginfo("current_velocity: %.2f, target_velocity: %.2f, n: %d, delta_v: %.2f", current_velocity,target_velocity, n, delta_v)
                         i = 0
                         while (i < LOOKAHEAD_WPS - n):
                             self.next_waypoints[i].twist.twist.linear.x = self.max_velocity
@@ -117,6 +119,7 @@ class WaypointUpdater(object):
                         velocity = self.max_velocity
                         while (i < LOOKAHEAD_WPS):
                             velocity = velocity - delta_v
+                            rospy.loginfo("velocity: %.2f", velocity)
                             self.next_waypoints[i].twist.twist.linear.x = velocity
                             i = i + 1
                     elif (self.status == "stop"):
