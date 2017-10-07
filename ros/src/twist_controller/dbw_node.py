@@ -93,8 +93,9 @@ class DBWNode(object):
 
     # this is called every 3 seconds
     def callback_waypoints(self, waypoints):
-        self.controller.reset() # <-- Reset the velocity PID
-        
+        #self.controller.reset() # <-- Reset the velocity PID
+        pass
+    
     def callback_pose(self, msg):
         self.x = msg.pose.position.x
         self.y = msg.pose.position.y
@@ -118,7 +119,7 @@ class DBWNode(object):
                 # Publish the control commands if dbw is enabled
                 if self.dbw_enabled:
                     #if self.frameCount < 1000:
-                    rospy.loginfo("v: %.2f, t: %.2f, b: %.2f, s: %.2f", linear_current, throttle, brake, steering)
+                    rospy.loginfo("v: %.2f, vtarg: %.2f, thr: %.2f, b: %.2f, s: %.2f", linear_current, linear_target, throttle, brake, steering)
                     self.publish(throttle, brake, steering)
                     #else:
                     #    rospy.loginfo("v: %.2f, t: %.2f, b: %.2f, s: %.2f debug: x: %.2f, y: %.2f", linear_current, 0.0, 1.0, 0.0, self.x, self.y)

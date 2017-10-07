@@ -13,7 +13,7 @@ import yaml
 import math
 
 STATE_COUNT_THRESHOLD = 3
-CLASSIFIER_ENABLED = True
+CLASSIFIER_ENABLED = False
 
 class TLDetector(object):
     def __init__(self):

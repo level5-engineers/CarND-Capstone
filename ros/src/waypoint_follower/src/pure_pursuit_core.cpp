@@ -297,7 +297,9 @@ void PurePursuit::getNextWaypoint()
     if (getPlaneDistance(current_waypoints_.getWaypointPosition(i), current_pose_.pose.position) > lookahead_distance_)
     {
       num_of_next_waypoint_ = i;
-      //ROS_ERROR_STREAM("wp = " << i << " dist = " << getPlaneDistance(current_waypoints_.getWaypointPosition(i), current_pose_.pose.position) );
+      //ROS_INFO_STREAM("wp = " << i << " dist = " << getPlaneDistance(current_waypoints_.getWaypointPosition(i), current_pose_.pose.position) );
+      //ROS_INFO("wp: %d, dist: %lf, x: %lf, y: %lf", i, getPlaneDistance(current_waypoints_.getWaypointPosition(i), current_pose_.pose.position), current_pose_.pose.position.x, current_pose_.pose.position.y );
+      // PROBLEM: returns a zero if the vehicle has traveled beyond the lookahead distance from the beginning of the waypoint list!!!
       return;
     }
   }

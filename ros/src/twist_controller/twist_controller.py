@@ -19,7 +19,7 @@ class Controller(object):
 
         self.yawController = YawController(wheel_base, steer_ratio, min_velocity, max_lat_accel, max_steer_angle)
         #self.correcting_pid = PID(0.065, 0.000775, 0.775, -1.57, 1.57)
-        self.velocity_pid = PID(10., 0.002, 1.0, decel_limit, accel_limit) # try heavy int bias
+        self.velocity_pid = PID(0.8, 0.0, 0.05, decel_limit, accel_limit)
 
     #TODO: Rough implementation - needs refinement
     def control(self, linear_velocity_target, angular_velocity_target, linear_velocity_current):
