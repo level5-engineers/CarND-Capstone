@@ -17,28 +17,30 @@ def nearest_waypoint(msg, x, y, t):
     return nearest_idx
 
 def nearest_search(msg,x,y,t):
-    found = False
+    not_found = True
     first = 0
     length = len(msg.waypoints)
     last = length - 1
     center = None
-    while ((first <= last) and not found):
+    while ((first <= last) and not_found):
         midpoint = int((first + last)/2)
         dist = waypoint_distance(msg.waypoints[midpoint], x, y)
         if (dist <= 2.7):
             center = midpoint
-            found = True
+            not_found = False
         else:
             if x < msg.waypoints[midpoint].pose.pose.position.x:
                 if msg.waypoints[midpoint].pose.pose.position.x <= 2339.44:
-                    last = midpoint - 1
+                    last = midpoint
                 else:
-                    first = midpoint + 1
+                    first = midpoint
             else:
                 if msg.waypoints[midpoint].pose.pose.position.x <= 2339.44:
-                    first = midpoint + 1
+                    first = midpoint
                 else:
-                    last = midpoint - 1
+                    last = midpoint
+    if center is None:
+        return None
     nearest_idx = None
     lowest_dist = 9999999.9
     shorter_list = []
@@ -48,17 +50,18 @@ def nearest_search(msg,x,y,t):
     #print msg.waypoints[center].pose.pose.position.x, msg.waypoints[center].pose.pose.position.y, "\n"
     #print "Center-50:  ", msg.waypoints[center-50].pose.pose.position.x, msg.waypoints[center-50].pose.pose.position.y, "\n"
     #print "Center+50:  ", msg.waypoints[center+50].pose.pose.position.x, msg.waypoints[center+50].pose.pose.position.y, "\n"
-    if center < 40:
-        shorter_list = msg.waypoints[0:70]
-    elif center > 1860:
-        shorter_list = msg.waypoints[-80:]
-        start = len-80
+    
+    if center < 10:
+        shorter_list = msg.waypoints[0:20]
+    elif center > 10890:
+        shorter_list = msg.waypoints[-30:]
+        start = len-30
     else:
-        shorter_list = msg.waypoints[center-40:center+40]
-        start = center-40
+        shorter_list = msg.waypoints[center-10:center+10]
+        start = center-10
     for idx, wp in enumerate(shorter_list):
         delta = waypoint_distance(wp, x, y)
-        if delta < lowest_dist:
+        if (delta < lowest_dist and (x != wp.pose.pose.position.x and y != wp.pose.pose.position.y)):
             lowest_dist = delta
             nearest_idx = idx
     nearest_wp = msg.waypoints[nearest_idx + start]

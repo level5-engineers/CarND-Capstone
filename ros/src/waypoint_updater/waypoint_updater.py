@@ -81,6 +81,8 @@ class WaypointUpdater(object):
             y_current = self.y_current
             theta_current = self.theta_current
             current_velocity = self.current_velocity
+
+            print "Current position: (", x_current, " ", y_current, ")"
             
             # we have base waypoints and current position
             if (self.base_waypoints is not None) and (self.x_current is not None and (self.red_light_waypoint is not None)):
@@ -172,7 +174,7 @@ class WaypointUpdater(object):
                 
             # --- if ends, still in while loop ----
             rate.sleep()
-            rospy.loginfo("Shutdown.")
+        rospy.loginfo("Shutdown.")
 
     def get_current_position(self, msg):
         self.x_current = msg.pose.position.x
@@ -185,9 +187,9 @@ class WaypointUpdater(object):
 
     def get_base_waypoints(self, waypoints):
         self.base_waypoints = waypoints
-	rospy.loginfo("Base waypoints set.\n")
+	rospy.loginfo("Base waypoints set. First waypoint:")
         self.destination = waypoints.waypoints[-1]
-        rospy.loginfo("x=%.2f, y=%.2f", waypoints.waypoints[0].pose.pose.position.x, waypoints.waypoints[0].pose.pose.position.y)
+        rospy.loginfo("x=%.2f, y=%.2f \n", waypoints.waypoints[0].pose.pose.position.x, waypoints.waypoints[0].pose.pose.position.y)
 
     def callback_traffic(self, msg):
         self.red_light_waypoint = msg.data-2 if msg.data >= 0 else None
