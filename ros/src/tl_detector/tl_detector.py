@@ -13,6 +13,7 @@ import yaml
 import math
 
 STATE_COUNT_THRESHOLD = 3
+CLASSIFIER_ENABLED = True
 
 class TLDetector(object):
     def __init__(self):
@@ -34,7 +35,6 @@ class TLDetector(object):
         rely on the position of the light and the camera image to predict it.
         '''
         sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
-        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
 
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
@@ -49,7 +49,9 @@ class TLDetector(object):
         self.last_state = TrafficLight.UNKNOWN
         self.last_wp = -1
         self.state_count = 0
+        self.camera_image = None
 
+        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
         rospy.spin()
 
     def pose_cb(self, msg):
@@ -168,11 +170,18 @@ class TLDetector(object):
         """
         if(not self.has_image):
             self.prev_light_loc = None
-            return False
+            return TrafficLight.RED
 
-        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+        # fix camera encoding
+        if hasattr(self.camera_image, 'encoding'):
+            self.attribute = self.camera_image.encoding
+            if self.camera_image.encoding == '8UC3':
+                self.camera_image.encoding = "rgb8"
+        else:
+            self.camera_image.encoding = 'rgb8'
+        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "rgb8")
 
-        x, y = self.project_to_image_plane(light.pose.pose.position)
+        #x, y = self.project_to_image_plane(light.pose.pose.position)
 
         #TODO use light location to zoom in on traffic light in image
 
@@ -212,10 +221,14 @@ class TLDetector(object):
                 if stop_pos:
                     #rospy.loginfo("stop_pos x: %.2f, stop_waypoint: %d", stop_pos.pose.position.x, stop_waypoint)
                     state = TrafficLight.UNKNOWN
-                    for light in self.lights:
-                        #TODO: This presently only uses /vehicle/traffic_lights
-                        if self.distance(light.pose.pose, stop_pos.pose) < 30:
-                            state = light.state
+                    
+                    if CLASSIFIER_ENABLED:
+                        state = self.get_light_state(None)
+                    else:
+                        for light in self.lights:
+                            #TODO: This presently only uses /vehicle/traffic_lights
+                            if self.distance(light.pose.pose, stop_pos.pose) < 30:
+                                state = light.state
                     return stop_waypoint, state
         #self.waypoints = None
         return -1, TrafficLight.UNKNOWN
