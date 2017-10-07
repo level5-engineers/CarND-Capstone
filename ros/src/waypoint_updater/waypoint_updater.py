@@ -41,19 +41,25 @@ class WaypointUpdater(object):
         self.theta_current = None
         
         # max target velocity, constant
-        self.target_velocity = 10.0 #mps
+        self.max_velocity = 10.0 #mpss
         
         # list of base waypoints, set only once
         self.base_waypoints = None
+        self.destination = None
         
         # list of previous waypoints, gets updated after each loop
         self.previous_waypoints = None
+        # list of next waypoints, keeping it persisted to prevent too much memory usage
+        self.next_waypoints = None
         
         # stop line for the nearest red/yellow light, and if green then None
         self.red_light_waypoint = None
         
         # current velocity of car, set by subscriber
         self.current_velocity = None
+        
+        # current state of the car: go/stop
+        self.status = None
         
         rospy.Subscriber('/current_pose', PoseStamped, self.get_current_position)
         rospy.Subscriber('/base_waypoints', Lane, self.get_base_waypoints)
@@ -79,9 +85,81 @@ class WaypointUpdater(object):
             # we have base waypoints and current position
             if (self.base_waypoints is not None) and (self.x_current is not None):
                 # get the index of the closest waypoint
-                nearest_waypoint = assist.nearest_search(self.base_waypoints, x_current, y_current, theta_current)
-                rospy.loginfo("Got the nearest waypoint: x=%.2f, y=%.2f", self.base_waypoints.waypoints[nearest_waypoint].pose.pose.position.x, self.base_waypoints.waypoints[nearest_waypoint].pose.pose.position.y)
+                nearest_waypoint_index = assist.nearest_search(self.base_waypoints, x_current, y_current, theta_current)
                 
+                nearest_waypoint = self.base_waypoints.waypoints[nearest_waypoint]
+                
+                rospy.loginfo("Got the nearest waypoint: x=%.2f, y=%.2f", nearest_waypoint.pose.pose.position.x, nearest_waypoint.pose.pose.position.y)
+                
+                # Store next LOOKAHEAD waypoints into next_waypoints, to be modified later.
+                self.next_waypoints = self.base_waypoints.waypoints[nearest_waypoint_index:(nearest_waypoint_index + LOOKAHEAD_WPS)]
+                
+                stop = self.stop_point(self.next_waypoints)
+                
+                if (stop not None):
+                    # Check if previous status was 'go'.
+                    # If YES, then previous waypoints must be reset.
+                    # ---Find n and delta_v
+                    # ---Reset previous_waypoints and publish.
+                    # If NO, then previous waypoints will persist.
+                    # Find which waypoint in previous list corresponds to nearest_waypoint
+                    # Edit the speeds of next_waypoints so that they correspond to previous ones.
+                    # For the remaining points, give them a speed of zero.
+                    target_velocity = 0.0
+                    if (self.status == "go" or self.status is None):
+                        [n, delta_v] = self.steps(current_velocity, target_velocity, stop)
+                        i = 0
+                        while (i <= LOOKAHEAD_WPS - n):
+                            self.next_waypoints[i].twist.twist.linear.x = self.max_velocity
+                            i = i + 1
+                        velocity = self.max_velocity
+                        while (i < LOOKAHEAD_WPS):
+                            velocity = velocity - delta_v
+                            self.next_waypoints[i].twist.twist.linear.x = velocity
+                            i = i + 1
+                    elif (self.status == "stop"):
+                        previous_limit = self.find_prior(nearest_waypoint)
+                        i = 0
+                        while (i < LOOKAHEAD_WPS):
+                            if i <= previous_limit:
+                                self.next_waypoints[i].twist.twist.linear.x = self.previous_waypoints[i].twist.twist.linear.x
+                            else:
+                                self.next_waypoints[i].twist.twist.linear.x = 0.0
+                            i = i + 1
+                    self.status = "stop"
+
+                elif (stop is None):
+                    # Check if previous status was 'go'.
+                    # If NO, then previous waypoints must be reset.
+                    # ---Find n and delta_v
+                    # ---Reset previous_waypoints and publish.
+                    # If YES, then previous waypoints will persist.
+                    # Find which waypoint in previous list corresponds to nearest_waypoint
+                    # Edit the speeds of next_waypoints so that they correspond to previous ones.
+                    # For the remaining points, give them a speed of target speed.
+                    target_velocity = self.max_velocity
+                    if (self.status == "stop" or self.status is None):
+                        if current_velocity
+                        [n, delta_v] = self.steps(current_velocity, target_velocity, LOOKAHEAD_WPS-1)
+                        i = 0
+                        velocity = current_velocity
+                        while (i <= n):
+                            velocity += delta_v
+                            self.next_waypoints[i].twist.twist.linear.x = velocity
+                            i = i + 1
+                        while (i < LOOKAHEAD_WPS):
+                            self.next_waypoints[i].twist.twist.linear.x = self.max_velocity
+                            i = i + 1
+                    elif (self.status == "go"):
+                        previous_limit = self.find_prior(nearest_waypoint)
+                        i = 0
+                        while (i < LOOKAHEAD_WPS):
+                            if i <= previous_limit:
+                                self.next_waypoints[i].twist.twist.linear.x = self.previous_waypoints[i].twist.twist.linear.x
+                            else:
+                                self.next_waypoints[i].twist.twist.linear.x = target_velocity
+                            i = i + 1
+                    self.status = "go"
                 # make a lane object
                 lane = Lane()
                 
@@ -110,12 +188,12 @@ class WaypointUpdater(object):
                 # --- for loop ends -----
                 
                 # Publish!
-		rospy.loginfo("Publishing points\n")
+                rospy.loginfo("Publishing points\n")
                 self.final_waypoints_pub.publish(lane)
                 
             # --- if ends, still in while loop ----
             rate.sleep()
-        rospy.loginfo("Shutdown.")
+            rospy.loginfo("Shutdown.")
 
     def get_current_position(self, msg):
         self.x_current = msg.pose.position.x
@@ -124,11 +202,12 @@ class WaypointUpdater(object):
         quat = [o.x, o.y, o.z, o.w]
         euler = tf.transformations.euler_from_quaternion(quat)
         self.theta_current = euler[2]
-	#rospy.loginfo("Current position received")
+	    #rospy.loginfo("Current position received")
 
     def get_base_waypoints(self, waypoints):
         self.base_waypoints = waypoints
-	rospy.loginfo("Base waypoints set.\n")
+	    rospy.loginfo("Base waypoints set.\n")
+        self.destination = waypoints.waypoints[-1]
         rospy.loginfo("x=%.2f, y=%.2f", waypoints.waypoints[0].pose.pose.position.x, waypoints.waypoints[0].pose.pose.position.y)
 
     def callback_traffic(self, msg):
@@ -159,18 +238,45 @@ class WaypointUpdater(object):
             wp1 = i
         return dist
     
-    def red_light_visible():
-        pass
-    
-    def destination_visible():
-        pass
-    
-    def final_waypoint_details():
-        return []
-    
-    def steps():
-        return []
-    
+    # Checks if red light OR destination is visible
+    # Gets index of the stop waypoint in current lookahead
+    # Returns index or None
+    # Arguments: direct list of LOOKAHEAD waypoints
+    def stop_point(self, waypoints):
+        found = False
+        stop_index = None
+        i = 0
+        num_points = len(waypoints)
+        while(i<num_points and not found):
+            if ((waypoints[i].pose.pose.position ==
+                 self.base_waypoints.waypoints[self.red_light_waypoint].pose.pose.position) 
+                or (waypoints[i].pose.pose.position = self.destination.pose.pose.position)):
+                found = True
+                stop_index = i
+            else:
+                i = i + 1
+        return stop_index
+
+    def find_prior(self, nearest_waypoint):
+        i = 0
+        length = len(self.previous_waypoints)
+        while (i < length):
+            if (self.previous_waypoints[i].pose.pose.position == nearest_waypoint.pose.pose.position):
+                return i
+            i = i + 1
+        return i
+            
+    # Returns how many steps it will take to safely accelerate/decelerate
+    def steps(current_velocity, target_velocity, final_waypoint):
+        delta_v = 0.8
+        n = int(abs(target_velocity - current_velocity) / delta_v)
+        
+        if (n > final_waypoint):
+            while (n >= final_waypoint):
+                delta_v += 0.2
+                n = int(abs(target_velocity - current_velocity) / delta_v)
+        return [n, delta_v]
+
 
 if __name__ == '__main__':
     try:
