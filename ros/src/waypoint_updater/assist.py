@@ -13,7 +13,7 @@ def nearest_waypoint(msg, x, y, t):
     num_points = len(msg.waypoints)
     nearest_wp = msg.waypoints[nearest_idx]
     if not is_waypoint_positive(nearest_wp, x, y, t): # Is it in front?
-        nearest_idx += 1
+        nearest_idx = (nearest_idx + 1) % num_points
     return nearest_idx
 
 def is_waypoint_positive(wp, x, y, t):
