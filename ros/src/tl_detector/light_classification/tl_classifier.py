@@ -10,11 +10,18 @@ class TLClassifier(object):
         graph_filename = 'tl_detector/light_classification/model/sim_graph.pb'
 
         self.labels = self.load_labels(labels_filename)
-        self.load_graph(graph_filename)
         self.labels_dic = {'yellow':1,
                             'green':2,
                             'red':0,
                             'none':4}
+
+        with tf.Session() as persisted_sess:
+            with tf.gfile.FastGFile(graph_filename, 'rb') as f:
+                graph_def = tf.GraphDef()
+                graph_def.ParseFromString(f.read())
+                persisted_sess.graph.as_default()
+                tf.import_graph_def(graph_def, name='')
+                self.sess = persisted_sess
 
 
     def load_labels(self, filename):
@@ -42,22 +49,22 @@ class TLClassifier(object):
 
     def run_graph(self, image_data, labels, input_layer_name, output_layer_name,
               num_top_predictions=1):
-        with tf.Session() as sess:
+        #with tf.Session() as sess:
         # Feed the image_data as input to the graph.
         #   predictions will contain a two-dimensional array, where one
         #   dimension represents the input image count, and the other has
         #   predictions per class
-            softmax_tensor = sess.graph.get_tensor_by_name(output_layer_name)
-            predictions, = sess.run(softmax_tensor, {input_layer_name: image_data})
+        softmax_tensor = self.sess.graph.get_tensor_by_name(output_layer_name)
+        predictions, = self.sess.run(softmax_tensor, {input_layer_name: image_data})
 
-            # Sort to show labels in order of confidence
-            top_k = predictions.argsort()[-num_top_predictions:][::-1]
-            for node_id in top_k:
-                human_string = labels[node_id]
-                score = predictions[node_id]
-                print('%s (score = %.5f)' % (human_string, score))
+        # Sort to show labels in order of confidence
+        top_k = predictions.argsort()[-num_top_predictions:][::-1]
+        for node_id in top_k:
+            human_string = labels[node_id]
+            score = predictions[node_id]
+            print('%s (score = %.5f)' % (human_string, score))
 
-            return human_string
+        return human_string
 
 
 
@@ -73,8 +80,6 @@ class TLClassifier(object):
         """
         #TODO implement light color prediction
         image_data = self.load_image(image)
-        predict_label = self.run_graph(image_data, self.labels, 'input:0', 'final_result:0',
-            1)
-
+        predict_label = self.run_graph(image_data, self.labels, 'input:0', 'final_result:0', 1)
 
         return self.labels_dic[predict_label]
