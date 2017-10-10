@@ -1,7 +1,7 @@
 # Support routines
 import math
 
-# TODO: refine this initial implementation
+# Works but very slow: goes through 10,000 waypoints each time
 def nearest_waypoint(msg, x, y, t):
     nearest_idx = None
     lowest_dist = 9999999.9
@@ -16,6 +16,7 @@ def nearest_waypoint(msg, x, y, t):
         nearest_idx = (nearest_idx + 1) % num_points
     return nearest_idx
 
+# TODO: Debug this. It's fast (binary search) but makes mistakes.
 def nearest_search(msg,x,y,t):
     not_found = True
     first = 0
