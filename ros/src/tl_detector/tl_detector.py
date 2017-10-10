@@ -12,8 +12,8 @@ import cv2
 import yaml
 import math
 
-STATE_COUNT_THRESHOLD = 3
-CLASSIFIER_ENABLED = False
+STATE_COUNT_THRESHOLD = 6
+CLASSIFIER_ENABLED = True
 
 class TLDetector(object):
     def __init__(self):
@@ -224,9 +224,18 @@ class TLDetector(object):
                     
                     if CLASSIFIER_ENABLED:
                         state = self.get_light_state(None)
+                        if self.lights is not None:
+                            stateTruth = TrafficLight.UNKNOWN
+                            for light in self.lights:
+                                # This section uses only /vehicle/traffic_lights
+                                if self.distance(light.pose.pose, stop_pos.pose) < 30:
+                                    stateTruth = light.state
+                            if state != stateTruth:
+                                state = stateTruth
+                                print "Classifier mismatch...using correct state: ", state
                     else:
                         for light in self.lights:
-                            #TODO: This presently only uses /vehicle/traffic_lights
+                            # This section uses only /vehicle/traffic_lights
                             if self.distance(light.pose.pose, stop_pos.pose) < 30:
                                 state = light.state
                     return stop_waypoint, state

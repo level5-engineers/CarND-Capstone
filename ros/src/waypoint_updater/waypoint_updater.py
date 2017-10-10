@@ -32,7 +32,7 @@ class WaypointUpdater(object):
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
-        rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
+        self.traffic_sub = rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
         # Member variables
@@ -42,7 +42,7 @@ class WaypointUpdater(object):
         self.next_waypoint  = None  # index of next waypoint
         self.stop_waypoint  = None  # stop line index for the nearest light
         self.next_basewp    = None  # the next waypoint index to retrieve from base
-        self.final_wp       = None  # the final waypoint in the list
+        self.destination    = None  # the final waypoint in the list
         self.msg_seq_num    = 0     # sequence number of published message
         self.velocity_drop  = 62.   # distance to begin reducing velocity
         self.VELOCITY_MAX   = 11.11 # mps simulator max of 40 km/h TODO: remove this
@@ -56,7 +56,6 @@ class WaypointUpdater(object):
                 self.publish(self.queue_wp)
             rate.sleep()
 
-    # TODO: figure out how to stop at the final waypoint
     def update(self):
         if (self.base_waypoints is None) or (self.current_pose is None):
             return
@@ -86,15 +85,22 @@ class WaypointUpdater(object):
                 self.queue_wp.append(self.base_waypoints[self.next_basewp])
                 self.update_waypoint_velocity(LOOKAHEAD_WPS-self.next_waypoint+i)
                 rospy.loginfo("Enqueing waypoint %d to queue", self.next_basewp)
-                self.next_basewp += 1   # TODO: handle end of track,  self.final_wp
+                
+                self.next_basewp += 1                             # TODO: modulo calc
+                if self.next_basewp == len(self.base_waypoints):  # handle end of track
+                    self.next_basewp = 0                          # wrap around to the beginning
             rospy.loginfo("Queue has %d items", len(self.queue_wp))
+            
+            # destination: execute exactly once
+            if (self.stop_waypoint == self.destination) and (self.next_basewp == 0):
+                self.update_velocities()                  # decelerate to stop line
 
     def update_velocities(self):
         # update all velocities in the queue
         #   if red in range of 4m (site) or 62m (sim) decel
         
         # for all waypoints in the queue
-        for idx in range(LOOKAHEAD_WPS):
+        for idx in range(len(self.queue_wp)):
             self.update_waypoint_velocity(idx)
 
     def update_waypoint_velocity(self, index):
@@ -104,11 +110,13 @@ class WaypointUpdater(object):
             sidx = self.stop_waypoint
             distance_to_stopline = self.distance2(self.queue_wp[index].pose.pose.position, self.base_waypoints[sidx].pose.pose.position)
             # calculate the ratio to reduce the velocity
-            
-            if distance_to_stopline < self.velocity_drop:
+            if distance_to_stopline <= 0:  # set velocity at or beyond stop line to zero
+                self.queue_wp[index].twist.twist.linear.x = 0.
+            elif distance_to_stopline < self.velocity_drop:
                 ratio = distance_to_stopline / self.velocity_drop
+                if distance_to_stopline <= 2.0:
+                    ratio = 0.
                 self.queue_wp[index].twist.twist.linear.x = self.VELOCITY_MAX * ratio
-            #TODO: set points beyond stop line to zero velocity
 
     def publish(self, wp_list):
         msg = Lane()
@@ -160,13 +168,27 @@ class WaypointUpdater(object):
 
     def pose_cb(self, msg):
         self.current_pose = msg.pose
+        
+        # check for proximity to destination
+        if self.destination is not None:
+            sidx = self.destination
+            distance_to_destination = self.distance2(self.current_pose.position, self.base_waypoints[sidx].pose.pose.position)
+            if distance_to_destination < self.velocity_drop:
+                self.traffic_sub.unregister()         # unsubscribe from traffic light messages
+                self.stop_waypoint = sidx             # set up an imaginary red traffic light
+                rospy.loginfo("Destination waypoint acquired...begin slowing")
+                self.update_velocities()
+                self.destination = None
 
     def waypoints_cb(self, waypoints):
         self.base_waypoints = waypoints.waypoints
-        self.final_wp = len(waypoints.waypoints) - 1
+        self.destination = len(waypoints.waypoints) - 1
+        
+        #debug: set a closer destination waypoint to test ending condition
+        #self.destination = 577
 
     def traffic_cb(self, msg):
-        self.stop_waypoint = msg.data if msg.data >= 0 else None
+        self.stop_waypoint = msg.data-3 if msg.data >= 0 else None
         
         # update queued waypoint velocities only on transitions
         if self.stop_waypoint != self.prev_state:

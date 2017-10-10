@@ -4,6 +4,7 @@ import rospy
 from std_msgs.msg import Bool
 from dbw_mkz_msgs.msg import ThrottleCmd, SteeringCmd, BrakeCmd, SteeringReport
 from geometry_msgs.msg import TwistStamped
+from lowpass import LowPassFilter
 
 #DEBUG JWD
 #from geometry_msgs.msg import PoseStamped
@@ -52,7 +53,7 @@ class DBWNode(object):
         max_lat_accel   = rospy.get_param('~max_lat_accel', 3.)
         max_steer_angle = rospy.get_param('~max_steer_angle', 8.)
         #steer_ratio     = 2.67 # <-- original value for simulator
-        decel_limit     = -1.0
+        decel_limit     = -0.5  #
         accel_limit     = 0.5
 
         self.steer_pub = rospy.Publisher('/vehicle/steering_cmd',
@@ -78,6 +79,7 @@ class DBWNode(object):
         self.dbw_enabled = False
         self.oneshot = False  # ISSUE ONLY ONE THROTTLE COMMAND
         self.frameCount = 0
+        self.lowpassFilt2 = LowPassFilter(accel_limit, 0.02)
         
         rospy.Subscriber('/twist_cmd', TwistStamped, self.callback_twist_cmd)
         rospy.Subscriber('/current_velocity', TwistStamped, self.callback_current_velocity)
@@ -114,6 +116,7 @@ class DBWNode(object):
                 linear_current = self.current_velocity.twist.linear.x;
                 angular_current = self.current_velocity.twist.angular.z;
                 #rospy.loginfo("linearc: %.2f, lineart: %.2f, angularc: %.2f, angulart: %.2f", linear_current, linear_target, angular_current, angular_target)
+                linear_target = self.lowpassFilt2.filt(linear_target) # filter target velocity
                 throttle, brake, steering = self.controller.control(linear_target, angular_target, linear_current)
                 
                 # Publish the control commands if dbw is enabled
