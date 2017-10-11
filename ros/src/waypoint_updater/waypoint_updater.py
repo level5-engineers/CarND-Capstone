@@ -122,10 +122,12 @@ class WaypointUpdater(object):
                         while (i < n1):
                             velocity += delta_v
                             self.next_waypoints[i].twist.twist.linear.x = velocity
+                            rospy.loginfo("Velocity set to %.2f", velocity)
                             i = i + 1
                         rospy.loginfo("Speeding up for %d iterations", n1)
                         while (i <= LOOKAHEAD_WPS - n2):
                             self.next_waypoints[i].twist.twist.linear.x = velocity
+                            rospy.loginfo("Velocity set to %.2f", velocity)
                             i = i + 1
                         rospy.loginfo("Staying at same speed for %d iterations", n3)
                         while (i < LOOKAHEAD_WPS):
@@ -133,19 +135,23 @@ class WaypointUpdater(object):
                             if velocity < 0.0:
                                 velocity = 0.0
                             self.next_waypoints[i].twist.twist.linear.x = velocity
+                            rospy.loginfo("Velocity set to %.2f", velocity)
                             i = i + 1
                         rospy.loginfo("Slowing down for %d iterations", n2)
                     
                     elif (self.status == "stop"):
                         previous_limit = self.find_prior(nearest_waypoint)
+                        rospy.loginfo("Last waypoint in previous waypoint list is %d", previous_limit)
                         i = 0
                         while (i < LOOKAHEAD_WPS):
                             if i <= previous_limit:
                                 self.next_waypoints[i].twist.twist.linear.x = self.previous_waypoints[i].twist.twist.linear.x
                             else:
                                 self.next_waypoints[i].twist.twist.linear.x = 0.0
+                                rospy.loginfo("Setting velocity to zero")
                             i = i + 1
                         rospy.loginfo("Reusing previous waypoints")
+                        
                     self.status = "stop"
 
                 elif (stop is None):
@@ -157,6 +163,7 @@ class WaypointUpdater(object):
                     # Find which waypoint in previous list corresponds to nearest_waypoint
                     # Edit the speeds of next_waypoints so that they correspond to previous ones.
                     # For the remaining points, give them a speed of target speed.
+                    rospy.loginfo("Red traffic light NOT detected")
                     target_velocity = self.max_velocity
                     if (self.status == "stop" or self.status is None):
                         [n1, n2, delta_v] = self.steps(current_velocity, target_velocity, LOOKAHEAD_WPS)
@@ -167,9 +174,11 @@ class WaypointUpdater(object):
                         while (i < n1):
                             velocity += delta_v
                             self.next_waypoints[i].twist.twist.linear.x = velocity
+                            rospy.loginfo("Velocity set to %.2f", velocity)
                             i = i + 1
                         while (i < LOOKAHEAD_WPS - n2):  # had to change to < rather than <=
                             self.next_waypoints[i].twist.twist.linear.x = velocity
+                            rospy.loginfo("Velocity set to %.2f", velocity)
                             i = i + 1
                         rospy.loginfo("Staying at same speed for %d iterations", n3)
                         while (i < LOOKAHEAD_WPS):
@@ -177,11 +186,13 @@ class WaypointUpdater(object):
                             if velocity < 0.0:
                                 velocity = 0.0
                             self.next_waypoints[i].twist.twist.linear.x = velocity
+                            rospy.loginfo("Velocity set to %.2f", velocity)
                             i = i + 1
                         rospy.loginfo("Slowing down for %d iterations", n2)
                         
                     elif (self.status == "go"):
                         previous_limit = self.find_prior(nearest_waypoint)
+                        rospy.loginfo("Last waypoint in previous waypoint list is %d", previous_limit)
                         i = 0
                         while (i < LOOKAHEAD_WPS):
                             if i <= previous_limit:
@@ -193,9 +204,13 @@ class WaypointUpdater(object):
                     self.status = "go"
                 
                 self.previous_waypoints = self.next_waypoints
+                for i in range(len(self.previous_waypoints)):
+                    rospy.loginfo("Prev velocity is %.2f", self.previous_waypoints[i].twist.twist.linear.x)
                 
                 # Publish!
                 rospy.loginfo("Publishing points\n")
+                for i in range(len(self.next_waypoints)):
+                    rospy.loginfo("Velocity is %.2f", self.next_waypoints[i].twist.twist.linear.x)
                 self.publish(self.next_waypoints)
                 
             # --- if ends, still in while loop ----
