@@ -61,6 +61,9 @@ class WaypointUpdater(object):
         # current state of the car: go/stop
         self.status = None
         
+        # message sequence number
+        self.msg_seq_num = 0
+        
         rospy.Subscriber('/current_pose', PoseStamped, self.get_current_position)
         rospy.Subscriber('/base_waypoints', Lane, self.get_base_waypoints)
         rospy.Subscriber('/current_velocity', TwistStamped, self.get_current_velocity)
@@ -110,8 +113,9 @@ class WaypointUpdater(object):
                     # Find which waypoint in previous list corresponds to nearest_waypoint
                     # Edit the speeds of next_waypoints so that they correspond to previous ones.
                     # For the remaining points, give them a speed of zero.
+                    target_velocity = 0.
                     if (self.status == "go" or self.status is None):
-                        [n1, n2, delta_v] = self.steps(self, current_velocity, target_velocity, stop)
+                        [n1, n2, delta_v] = self.steps(current_velocity, target_velocity, stop)
                         n3 = LOOKAHEAD_WPS - n1 - n2
                         i = 0
                         velocity = current_velocity
@@ -156,13 +160,15 @@ class WaypointUpdater(object):
                     target_velocity = self.max_velocity
                     if (self.status == "stop" or self.status is None):
                         [n1, n2, delta_v] = self.steps(current_velocity, target_velocity, LOOKAHEAD_WPS)
+                        rospy.loginfo("n1: %d, n2: %d, delta_v: %.2f", n1, n2, delta_v)
+                        n3 = LOOKAHEAD_WPS - n1 - n2
                         i = 0
                         velocity = current_velocity
                         while (i < n1):
                             velocity += delta_v
                             self.next_waypoints[i].twist.twist.linear.x = velocity
                             i = i + 1
-                        while (i <= LOOKAHEAD_WPS - n2):
+                        while (i < LOOKAHEAD_WPS - n2):  # had to change to < rather than <=
                             self.next_waypoints[i].twist.twist.linear.x = velocity
                             i = i + 1
                         rospy.loginfo("Staying at same speed for %d iterations", n3)
@@ -190,11 +196,20 @@ class WaypointUpdater(object):
                 
                 # Publish!
                 rospy.loginfo("Publishing points\n")
-                self.final_waypoints_pub.publish(lane)
+                self.publish(self.next_waypoints)
                 
             # --- if ends, still in while loop ----
             rate.sleep()
         rospy.loginfo("Shutdown.")
+
+    def publish(self, wp_list):
+        msg = Lane()
+        msg.waypoints = wp_list
+        msg.header.frame_id = '/world'
+        msg.header.stamp = rospy.Time.now()
+        msg.header.seq = self.msg_seq_num
+        self.msg_seq_num += 1
+        self.final_waypoints_pub.publish(msg)
 
     def get_current_position(self, msg):
         self.x_current = msg.pose.position.x
@@ -268,7 +283,7 @@ class WaypointUpdater(object):
         return i
             
     # Returns how many steps it will take to safely accelerate/decelerate
-    def steps(current_velocity, target_velocity, stop):
+    def steps(self, current_velocity, target_velocity, stop):
         delta_v = 0.8
         max_velocity = 10.0
         # Number of waypoints for acceleration earlier
