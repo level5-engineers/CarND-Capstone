@@ -174,7 +174,6 @@ class TLDetector(object):
 
         # fix camera encoding
         if hasattr(self.camera_image, 'encoding'):
-            self.attribute = self.camera_image.encoding
             if self.camera_image.encoding == '8UC3':
                 self.camera_image.encoding = "rgb8"
         else:
