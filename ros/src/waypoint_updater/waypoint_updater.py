@@ -91,10 +91,6 @@ class WaypointUpdater(object):
                     self.next_basewp = 0                          # wrap around to the beginning
             rospy.loginfo("Queue has %d items", len(self.queue_wp))
             
-            # destination: execute exactly once
-            if (self.stop_waypoint == self.destination) and (self.next_basewp == 0):
-                self.update_velocities()                  # decelerate to stop line
-
     def update_velocities(self):
         # update all velocities in the queue
         #   if red in range of 4m (site) or 62m (sim) decel
