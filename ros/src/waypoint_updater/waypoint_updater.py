@@ -179,7 +179,12 @@ class WaypointUpdater(object):
     def waypoints_cb(self, waypoints):
         self.base_waypoints = waypoints.waypoints
         self.destination = len(waypoints.waypoints) - 1
+        
+        # Acquire the default velocity from the waypoint loader
         self.VELOCITY_MAX = waypoints.waypoints[0].twist.twist.linear.x
+        
+        # Compute a safe stopping distance
+        self.velocity_drop = self.VELOCITY_MAX * self.VELOCITY_MAX / 2.
         
         #debug: set a closer destination waypoint to test end-of-track-halt condition
         #self.destination = 577
