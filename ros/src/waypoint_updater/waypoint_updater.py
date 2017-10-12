@@ -88,9 +88,11 @@ class WaypointUpdater(object):
             
             # we have base waypoints and current position
             if (self.base_waypoints is not None) and (self.x_current is not None and (self.red_light_waypoint is not None)):
+                
                 # get the index of the closest waypoint
                 nearest_waypoint_index = assist.nearest_waypoint(self.base_waypoints, x_current, y_current, theta_current)
                 
+                # get the closest waypoint object
                 nearest_waypoint = self.base_waypoints.waypoints[nearest_waypoint_index]
                 
                 rospy.loginfo("Got the nearest waypoint: x=%.2f, y=%.2f", nearest_waypoint.pose.pose.position.x, nearest_waypoint.pose.pose.position.y)
@@ -103,17 +105,13 @@ class WaypointUpdater(object):
                 current_velocity = self.current_velocity
                 if current_velocity > self.max_velocity:
                     current_velocity = self.max_velocity
+                
+                # MUST STOP
                 if (stop is not None):
                     rospy.loginfo("Red traffic light detected")
-                    # Check if previous status was 'go'.
-                    # If YES, then previous waypoints must be reset.
-                    # ---Find n and delta_v
-                    # ---Reset previous_waypoints and publish.
-                    # If NO, then previous waypoints will persist.
-                    # Find which waypoint in previous list corresponds to nearest_waypoint
-                    # Edit the speeds of next_waypoints so that they correspond to previous ones.
-                    # For the remaining points, give them a speed of zero.
-                    target_velocity = 0.
+                    target_velocity = 0.0
+                    
+                    # Must use new waypoints
                     if (self.status == "go" or self.status is None):
                         [n1, n2, delta_v] = self.steps(current_velocity, target_velocity, stop)
                         n3 = LOOKAHEAD_WPS - n1 - n2
@@ -139,6 +137,7 @@ class WaypointUpdater(object):
                             i = i + 1
                         rospy.loginfo("Slowing down for %d iterations", n2)
                     
+                    # Reuse previous waypoints
                     elif (self.status == "stop"):
                         previous_limit = self.find_prior(nearest_waypoint)
                         rospy.loginfo("Last waypoint in previous waypoint list is %d", previous_limit)
@@ -154,17 +153,12 @@ class WaypointUpdater(object):
                         
                     self.status = "stop"
 
+                # KEEP GOING
                 elif (stop is None):
-                    # Check if previous status was 'go'.
-                    # If NO, then previous waypoints must be reset.
-                    # ---Find n and delta_v
-                    # ---Reset previous_waypoints and publish.
-                    # If YES, then previous waypoints will persist.
-                    # Find which waypoint in previous list corresponds to nearest_waypoint
-                    # Edit the speeds of next_waypoints so that they correspond to previous ones.
-                    # For the remaining points, give them a speed of target speed.
                     rospy.loginfo("Red traffic light NOT detected")
                     target_velocity = self.max_velocity
+                    
+                    # Reset and use new waypoints
                     if (self.status == "stop" or self.status is None):
                         [n1, n2, delta_v] = self.steps(current_velocity, target_velocity, LOOKAHEAD_WPS)
                         rospy.loginfo("n1: %d, n2: %d, delta_v: %.2f", n1, n2, delta_v)
@@ -189,7 +183,8 @@ class WaypointUpdater(object):
                             rospy.loginfo("Velocity set to %.2f", velocity)
                             i = i + 1
                         rospy.loginfo("Slowing down for %d iterations", n2)
-                        
+                    
+                    # Reuse previous waypoints
                     elif (self.status == "go"):
                         previous_limit = self.find_prior(nearest_waypoint)
                         rospy.loginfo("Last waypoint in previous waypoint list is %d", previous_limit)
@@ -203,7 +198,9 @@ class WaypointUpdater(object):
                         rospy.loginfo("Reusing previous waypoints")
                     self.status = "go"
                 
-                self.previous_waypoints = self.next_waypoints
+                # Velocities calculated, now let's log and publish
+                self.previous_waypoints = self.next_waypoints # ---- Is this working?
+                
                 for i in range(len(self.previous_waypoints)):
                     rospy.loginfo("Prev velocity is %.2f", self.previous_waypoints[i].twist.twist.linear.x)
                 

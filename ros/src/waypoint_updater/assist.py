@@ -26,7 +26,7 @@ def nearest_search(msg,x,y,t):
     while ((first <= last) and not_found):
         midpoint = int((first + last)/2)
         dist = waypoint_distance(msg.waypoints[midpoint], x, y)
-        if (dist <= 2.7):
+        if (dist <= 2.8):
             center = midpoint
             not_found = False
         else:
