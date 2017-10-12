@@ -87,7 +87,7 @@ class WaypointUpdater(object):
             print "Current position: (", x_current, " ", y_current, ")"
             
             # we have base waypoints and current position
-            if (self.base_waypoints is not None) and (self.x_current is not None and (self.red_light_waypoint is not None)):
+            if ((self.base_waypoints is not None) and (self.x_current is not None) and (self.red_light_waypoint is not None)):
                 
                 # get the index of the closest waypoint
                 nearest_waypoint_index = assist.nearest_waypoint(self.base_waypoints, x_current, y_current, theta_current)
@@ -142,8 +142,9 @@ class WaypointUpdater(object):
                         previous_limit = self.find_prior(nearest_waypoint)
                         rospy.loginfo("Last waypoint in previous waypoint list is %d", previous_limit)
                         i = 0
+                        end_previous = len(self.previous_waypoints) - previous_limit
                         while (i < LOOKAHEAD_WPS):
-                            if i <= previous_limit:
+                            if i < end_previous:
                                 self.next_waypoints[i].twist.twist.linear.x = self.previous_waypoints[i].twist.twist.linear.x
                             else:
                                 self.next_waypoints[i].twist.twist.linear.x = 0.0
@@ -285,6 +286,7 @@ class WaypointUpdater(object):
                 i = i + 1
         return stop_index
 
+    # Finds the nearest waypoint's index within the previous waypoints
     def find_prior(self, nearest_waypoint):
         i = 0
         length = len(self.previous_waypoints)
