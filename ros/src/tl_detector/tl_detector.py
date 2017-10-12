@@ -222,11 +222,12 @@ class TLDetector(object):
             if car_position > 0:
                 stop_pos, stop_waypoint = self.get_nearest_stop_line(car_position)
                 
-                # if the traffic light is within 75 meters, then attempt to classify
-                if (stop_pos is not None) and (self.distance(self.pose.pose, stop_pos.pose) < 75.):
+                if stop_pos is not None:
                     #rospy.loginfo("stop_pos x: %.2f, stop_waypoint: %d", stop_pos.pose.position.x, stop_waypoint)
                     state = TrafficLight.UNKNOWN
-                    if CLASSIFIER_ENABLED:
+                    
+                    # if the traffic light is within 75 meters, then attempt to classify
+                    if CLASSIFIER_ENABLED and (self.distance(self.pose.pose, stop_pos.pose) < 75.):
                         state = self.get_light_state(None)
                         if self.lights is not None:
                             stateTruth = TrafficLight.UNKNOWN
