@@ -190,8 +190,9 @@ class WaypointUpdater(object):
                         previous_limit = self.find_prior(nearest_waypoint)
                         rospy.loginfo("Last waypoint in previous waypoint list is %d", previous_limit)
                         i = 0
+                        end_previous = len(self.previous_waypoints) - previous_limit
                         while (i < LOOKAHEAD_WPS):
-                            if i <= previous_limit:
+                            if i < end_previous:
                                 self.next_waypoints[i].twist.twist.linear.x = self.previous_waypoints[i].twist.twist.linear.x
                             else:
                                 self.next_waypoints[i].twist.twist.linear.x = target_velocity
