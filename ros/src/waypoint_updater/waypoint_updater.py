@@ -163,7 +163,6 @@ class WaypointUpdater(object):
                     if (self.status == "stop" or self.status is None):
                         [n1, n2, delta_v] = self.steps(current_velocity, target_velocity, LOOKAHEAD_WPS)
                         rospy.loginfo("n1: %d, n2: %d, delta_v: %.2f", n1, n2, delta_v)
-                        n3 = LOOKAHEAD_WPS - n1 - n2
                         i = 0
                         velocity = current_velocity
                         while (i < n1):
@@ -171,19 +170,11 @@ class WaypointUpdater(object):
                             self.next_waypoints[i].twist.twist.linear.x = velocity
                             rospy.loginfo("Velocity set to %.2f", velocity)
                             i = i + 1
-                        while (i < LOOKAHEAD_WPS - n2):  # had to change to < rather than <=
+                        while (i < LOOKAHEAD_WPS):  # had to change to < rather than <=
                             self.next_waypoints[i].twist.twist.linear.x = velocity
                             rospy.loginfo("Velocity set to %.2f", velocity)
                             i = i + 1
-                        rospy.loginfo("Staying at same speed for %d iterations", n3)
-                        while (i < LOOKAHEAD_WPS):
-                            velocity -= delta_v
-                            if velocity < 0.0:
-                                velocity = 0.0
-                            self.next_waypoints[i].twist.twist.linear.x = velocity
-                            rospy.loginfo("Velocity set to %.2f", velocity)
-                            i = i + 1
-                        rospy.loginfo("Slowing down for %d iterations", n2)
+                        rospy.loginfo("Staying at same speed for %d iterations", LOOKAHEAD_WPS - n1)
                     
                     # Reuse previous waypoints
                     elif (self.status == "go"):
