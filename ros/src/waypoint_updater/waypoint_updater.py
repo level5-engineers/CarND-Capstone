@@ -20,10 +20,9 @@ Please note that our simulator also provides the exact location of traffic light
 current status in `/vehicle/traffic_lights` message. You can use this message to build this node
 as well as to verify your TL classifier.
 
-TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 100 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 100 # Number of waypoints we will publish.
 PUBLISHING_RATE = 2 # Publishing frequency (Hz)
 
 class WaypointUpdater(object):
@@ -45,7 +44,7 @@ class WaypointUpdater(object):
         self.destination    = None  # the final waypoint in the list
         self.msg_seq_num    = 0     # sequence number of published message
         self.velocity_drop  = 62.   # distance to begin reducing velocity
-        self.VELOCITY_MAX   = 11.11 # mps simulator max of 40 km/h TODO: remove this
+        self.VELOCITY_MAX   = 2.777 # mps Carla max of 10 km/h (updated by waypoints_cb)
         self.prev_state     = None  # previous traffic light state
 
         # Operations loop and publishing of /final_waypoints
@@ -100,7 +99,7 @@ class WaypointUpdater(object):
             self.update_waypoint_velocity(idx)
 
     def update_waypoint_velocity(self, index):
-        self.queue_wp[index].twist.twist.linear.x = self.VELOCITY_MAX # TODO: get default velocity        
+        self.queue_wp[index].twist.twist.linear.x = self.VELOCITY_MAX        
         if self.stop_waypoint is not None:
             # get the distance to the red light
             sidx = self.stop_waypoint
@@ -176,15 +175,18 @@ class WaypointUpdater(object):
                 self.update_velocities()
                 self.destination = None
 
+    # The following callback is latched (called once)
     def waypoints_cb(self, waypoints):
         self.base_waypoints = waypoints.waypoints
         self.destination = len(waypoints.waypoints) - 1
+        self.VELOCITY_MAX = waypoints.waypoints[0].twist.twist.linear.x
         
-        #debug: set a closer destination waypoint to test ending condition
+        #debug: set a closer destination waypoint to test end-of-track-halt condition
         #self.destination = 577
 
     def traffic_cb(self, msg):
-        self.stop_waypoint = msg.data-3 if msg.data >= 0 else None
+        self.stop_waypoint = msg.data if msg.data >= 0 else None
+        #self.stop_waypoint = msg.data-3 if msg.data >= 0 else None
         
         # update queued waypoint velocities only on transitions
         if self.stop_waypoint != self.prev_state:
