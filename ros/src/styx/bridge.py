@@ -103,6 +103,7 @@ class Bridge(object):
         tw = TwistStamped()
         tw.twist.linear.x = velocity
         tw.twist.angular.z = angular
+        tw.header.stamp = rospy.Time.now()
         return tw
 
     def create_steer(self, val):
