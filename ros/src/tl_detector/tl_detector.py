@@ -13,7 +13,7 @@ import yaml
 import math
 import numpy as np
 
-STATE_COUNT_THRESHOLD = 6
+STATE_COUNT_THRESHOLD = 3
 CLASSIFIER_ENABLED = True
 
 from PIL import Image as PIL_Image
@@ -40,20 +40,20 @@ class TLDetector(object):
         sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
 
         config_string = rospy.get_param("/traffic_light_config")
-        self.config = yaml.load(config_string)
+        self.config   = yaml.load(config_string)
 
         self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
 
-        self.bridge = CvBridge()
+        self.bridge           = CvBridge()
         self.light_classifier = TLClassifier()
-        self.listener = tf.TransformListener()
+        self.listener         = tf.TransformListener()
 
-        self.state = TrafficLight.UNKNOWN
-        self.last_state = TrafficLight.UNKNOWN
-        self.last_wp = -1
-        self.state_count = 0
-        self.camera_image = None
-        self.seq = 9174
+        self.state            = TrafficLight.UNKNOWN
+        self.last_state       = TrafficLight.UNKNOWN
+        self.last_wp          = -1
+        self.state_count      = 0
+        self.camera_image     = None
+        self.seq              = 9174
 
         sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
         rospy.spin()
