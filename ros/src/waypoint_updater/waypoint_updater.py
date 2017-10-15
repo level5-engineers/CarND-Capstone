@@ -185,7 +185,7 @@ class WaypointUpdater(object):
         self.destination = len(waypoints.waypoints) - 1
         
         # Acquire the default velocity from the waypoint loader
-        self.VELOCITY_MAX = waypoints.waypoints[0].twist.twist.linear.x
+        self.VELOCITY_MAX = waypoints.waypoints[100].twist.twist.linear.x
         
         # Compute a safe stopping distance
         self.velocity_drop = self.VELOCITY_MAX * self.VELOCITY_MAX / 2.
