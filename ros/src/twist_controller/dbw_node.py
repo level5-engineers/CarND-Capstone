@@ -52,8 +52,6 @@ class DBWNode(object):
         steer_ratio       = rospy.get_param('~steer_ratio', 14.8)
         max_lat_accel     = rospy.get_param('~max_lat_accel', 3.)
         max_steer_angle   = rospy.get_param('~max_steer_angle', 8.)
-        decel_limit       = -0.22
-        accel_limit       = 1.0
 
         self.steer_pub = rospy.Publisher('/vehicle/steering_cmd',
                                          SteeringCmd, queue_size=1)
@@ -98,7 +96,7 @@ class DBWNode(object):
                 throttle, brake, steering = self.controller.control(linear_target, angular_target, linear_current)
                 
                 # publish the control commands if dbw is enabled
-                if self.dbw_enabled:
+                if self.dbw_enabled is True:
                     #rospy.loginfo("v: %.2f, vtarg: %.2f, thr: %.2f, b: %.2f, s: %.2f", linear_current, linear_target, throttle, brake, steering)
                     self.publish(throttle, brake, steering)
                 else:
@@ -138,6 +136,7 @@ class DBWNode(object):
         self.current_velocity = msg
 
     def callback_dbw_enabled(self, msg):
+        rospy.loginfo("dbw_enabled: %s", msg)
         self.dbw_enabled = msg.data
 
 if __name__ == '__main__':

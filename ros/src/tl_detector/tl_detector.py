@@ -54,6 +54,8 @@ class TLDetector(object):
         self.state_count      = 0
         self.camera_image     = None
         self.seq              = 9174
+        self.misscount        = 0.
+        self.totcount         = 0.
 
         sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
         rospy.spin()
@@ -196,8 +198,11 @@ class TLDetector(object):
                                     stateTruth = light.state
                             if state != stateTruth:
                                 state = stateTruth
-                                print "Classifier mismatch...using correct state: ", state
+                                #print "Classifier mismatch...using correct state: ", state
                                 #self.saveImage(self.camera_image, state)
+                                self.misscount += 1.
+                            self.totcount += 1.
+                            print "mismatch%: ", self.misscount / self.totcount
                     else:
                         for light in self.lights:
                             # This section uses only /vehicle/traffic_lights
