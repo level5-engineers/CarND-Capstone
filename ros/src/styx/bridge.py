@@ -33,6 +33,13 @@ TYPE = {
     'throttle_cmd': ThrottleCmd,
     'image':Image
 }
+seq= 0
+def saveImage(image):
+    global seq
+    if seq%2==0:
+        img= PIL_Image.fromarray(image, 'RGB') # 'L'
+        img.save('/home/student/data/out'+str(seq).zfill(5)+'.png', 'PNG')
+    seq += 1
 
 
 class Bridge(object):
@@ -96,6 +103,7 @@ class Bridge(object):
         tw = TwistStamped()
         tw.twist.linear.x = velocity
         tw.twist.angular.z = angular
+        tw.header.stamp = rospy.Time.now()
         return tw
 
     def create_steer(self, val):
@@ -179,8 +187,9 @@ class Bridge(object):
         imgString = data["image"]
         image = PIL_Image.open(BytesIO(base64.b64decode(imgString)))
         image_array = np.asarray(image)
+        #saveImage(image_array)
 
-        image_message = self.bridge.cv2_to_imgmsg(image_array, encoding="rgb8")
+        image_message = self.bridge.cv2_to_imgmsg(image_array, encoding="passthrough")
         self.publishers['image'].publish(image_message)
 
     def callback_steering(self, data):
