@@ -53,7 +53,8 @@ class TLDetector(object):
         self.last_wp          = -1
         self.state_count      = 0
         self.camera_image     = None
-        self.seq              = 9174
+        self.seq              = 12643
+        self.count            = 0
         self.misscount        = 0.
         self.totcount         = 0.
 
@@ -187,54 +188,62 @@ class TLDetector(object):
                     #rospy.loginfo("stop_pos x: %.2f, stop_waypoint: %d", stop_pos.pose.position.x, stop_waypoint)
                     state = TrafficLight.UNKNOWN
                     
+                    if self.distance(self.pose.pose, stop_pos.pose) < 75.:
                     # if the traffic light is within 75 meters, then attempt to classify
-                    if CLASSIFIER_ENABLED and (self.distance(self.pose.pose, stop_pos.pose) < 75.):
-                        state = self.get_light_state(None)
-                        if self.lights is not None:
-                            stateTruth = TrafficLight.UNKNOWN
+                        if CLASSIFIER_ENABLED:
+                            state = self.get_light_state(None)
+                            if self.lights is not None:
+                                stateTruth = TrafficLight.UNKNOWN
+                                for light in self.lights:
+                                    # Get the ground truth from /vehicle/traffic_lights
+                                    if self.distance(light.pose.pose, stop_pos.pose) < 30.:
+                                        stateTruth = light.state
+                                        break
+                                if (((stateTruth is 4) or (stateTruth is 2)) and (state is 0)) or (((stateTruth is 0) or (stateTruth is 1)) and (state is 4)) :
+                                    print "Classifier: ", state, " Truth: ", stateTruth
+                                    state = stateTruth
+                                    #self.saveImage(self.camera_image, state)
+                                    self.misscount += 1.
+                                self.totcount += 1.
+                                print "mismatch%: ", self.misscount / self.totcount
+                                #self.saveImage(self.camera_image, stateTruth)
+                        else:
                             for light in self.lights:
                                 # This section uses only /vehicle/traffic_lights
                                 if self.distance(light.pose.pose, stop_pos.pose) < 30.:
-                                    stateTruth = light.state
-                            if state != stateTruth:
-                                state = stateTruth
-                                #print "Classifier mismatch...using correct state: ", state
-                                #self.saveImage(self.camera_image, state)
-                                self.misscount += 1.
-                            self.totcount += 1.
-                            print "mismatch%: ", self.misscount / self.totcount
-                    else:
-                        for light in self.lights:
-                            # This section uses only /vehicle/traffic_lights
-                            if self.distance(light.pose.pose, stop_pos.pose) < 30.:
-                                state = light.state
-                    return stop_waypoint, state
+                                    state = light.state
+                                    #rospy.loginfo("light state: %d, x: %.2f, y: %.2f", state, self.pose.pose.position.x, self.pose.pose.position.y)
+                                    #rospy.loginfo("dist tl to stop: %.2f", self.distance(light.pose.pose, stop_pos.pose))
+                                    break
+                        return stop_waypoint, state
         #self.waypoints = None
         return -1, TrafficLight.UNKNOWN
 
     def saveImage(self, img, state):
-        if self.seq%2==0:
+        #if self.count%2==0:
             # fix camera encoding
-            if hasattr(img, 'encoding'):
-                if img.encoding == '8UC3':
-                    img.encoding = "rgb8"
-            else:
-                img.encoding = 'rgb8'
-            img = self.bridge.imgmsg_to_cv2(img, "rgb8")
+        if hasattr(img, 'encoding'):
+            if img.encoding == '8UC3':
+                img.encoding = "rgb8"
+        else:
+            img.encoding = 'rgb8'
+        img = self.bridge.imgmsg_to_cv2(img, "rgb8")
 
-            image_data = cv2.resize(img, (224,224))
+        image_data = cv2.resize(img, (224,224))
             #image_data = (image_data - 128.)/128.
             #image_data = np.reshape(image_data, (1,224,224,3))
-            img= PIL_Image.fromarray(image_data, 'RGB')
-            if state == TrafficLight.RED:
-                img.save('/home/student/data/red/out'+str(self.seq).zfill(5)+'.png', 'PNG')
-            elif state == TrafficLight.YELLOW:
-                img.save('/home/student/data/yellow/out'+str(self.seq).zfill(5)+'.png', 'PNG')
-            elif state == TrafficLight.GREEN:
-                img.save('/home/student/data/green/out'+str(self.seq).zfill(5)+'.png', 'PNG')
-            else:
-                img.save('/home/student/data/unknown/out'+str(self.seq).zfill(5)+'.png', 'PNG')
-        self.seq += 1
+        img= PIL_Image.fromarray(image_data, 'RGB')
+            #if state == TrafficLight.RED:
+            #    img.save('/home/student/data/red/out'+str(self.seq).zfill(5)+'.png', 'PNG')
+            #el
+        if state == TrafficLight.YELLOW:
+            img.save('/home/student/data/yellow/out'+str(self.seq).zfill(5)+'.png', 'PNG')
+            self.seq += 1
+            #elif state == TrafficLight.GREEN:
+            #    img.save('/home/student/data/green/out'+str(self.seq).zfill(5)+'.png', 'PNG')
+            #else:
+            #    img.save('/home/student/data/unknown/out'+str(self.seq).zfill(5)+'.png', 'PNG')
+        #self.count += 1
 
 
 if __name__ == '__main__':

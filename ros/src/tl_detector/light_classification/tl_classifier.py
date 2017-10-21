@@ -1,4 +1,3 @@
-#from styx_msgs.msg import TrafficLight
 import tensorflow as tf
 import cv2
 import numpy as np
@@ -6,6 +5,8 @@ import numpy as np
 class TLClassifier(object):
     def __init__(self):
         #load classifier
+        # labels_filename = 'tl_detector/light_classification/model/sim_labels_incv3_92.txt'
+        # graph_filename = 'tl_detector/light_classification/model/sim_graph_incv3_92.pb'
         labels_filename = 'light_classification/model/sim_labels.txt'
         graph_filename = 'light_classification/model/sim_graph.pb'
         
@@ -26,6 +27,7 @@ class TLClassifier(object):
     def load_labels(self, filename):
         """Read in labels, one label per line.
         From Tensorflow Example image retrain"""
+        print ('filename', filename)
         return [line.rstrip() for line in tf.gfile.GFile(filename)]
 
     # for testing purposes
@@ -42,9 +44,11 @@ class TLClassifier(object):
 
     # downsample the incoming image from the ROS message
     def scale_image(self, img):
+        #img = cv2.imread(img)
+        #img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         image_data = cv2.resize(img, (224,224))
         image_data = (image_data - 128.)/128.
-        image_data = np.reshape(image_data, (1,224,224,3))
+        image_data = np.reshape(image_data, (1, 224,224,3))
         return image_data
 
     def run_graph(self, image_data, labels, input_layer_name, output_layer_name,
@@ -55,7 +59,7 @@ class TLClassifier(object):
         #   dimension represents the input image count, and the other has
         #   predictions per class
         softmax_tensor = self.sess.graph.get_tensor_by_name(output_layer_name)
-        predictions, = self.sess.run(softmax_tensor, {input_layer_name: image_data})
+        predictions, = self.sess.run(softmax_tensor, {input_layer_name: image_data, 'Placeholder:0':1.0})
 
         # Sort to show labels in order of confidence
         top_k = predictions.argsort()[-num_top_predictions:][::-1]
@@ -67,17 +71,14 @@ class TLClassifier(object):
 
     def get_classification(self, image):
         """Determines the color of the traffic light in the image
-
         Args:
             image (cv::Mat): image containing the traffic light
-
         Returns:
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
-
         """
         # Perform light color prediction
         # For testing: image_data = self.load_image(image)
-        image_data = self.scale_image(image)
+        image_data = self.scale_image(image)  #DecodeJpeg
         predict_label = self.run_graph(image_data, self.labels, 'input:0', 'final_result:0', 1)
 
         return self.labels_dic[predict_label]
