@@ -41,6 +41,7 @@ class TLDetector(object):
         self.misscount        = 0.
         self.totcount         = 0.
         self.sight            = 75.   # cautionary distance
+        self.wpAcquired       = False
 
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -66,11 +67,13 @@ class TLDetector(object):
         self.pose = msg
 
     def waypoints_cb(self, msg):
-        self.waypoints = self.filterWaypoints(msg)
-        if self.waypoints[20].twist.twist.linear.x < 5.:
-            self.sight = 20.  # adjust cautionary distance for site test
-        print "cautionary distance", self.sight
-        print self.waypoints[20].twist.twist.linear.x
+        if not self.wpAcquired:
+            self.wpAcquired = True
+            self.waypoints = self.filterWaypoints(msg)
+            if self.waypoints[20].twist.twist.linear.x < 5.:
+                self.sight = 20.  # adjust cautionary distance for site test
+            print "cautionary distance", self.sight
+            print self.waypoints[20].twist.twist.linear.x
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
