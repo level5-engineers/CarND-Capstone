@@ -37,13 +37,13 @@ Legend: the letters a-k indicate published ROS topics
 ```
 
 ### Perception
-The traffic light detection and classification node uses a Convolutional Neural Network to classify whole images as either `red` or `none`. The model was trained with several datasets using the transfer learning technique on the MobileNet architecture with the Tensorflow Image Retraining Example (tutorial: https://goo.gl/HgmiVo, code: https://goo.gl/KdVcMi). [more...](https://github.com/level5-engineers/system-integration/wiki/Readme-preparation#additional-specifications)
+The traffic light detection and classification node uses a Convolutional Neural Network to classify whole images as either `red` or `none`. The model was trained with several datasets using the transfer learning technique on the MobileNet architecture with the Tensorflow Image Retraining Example (tutorial: https://goo.gl/HgmiVo, code: https://goo.gl/KdVcMi). [more...](#additional-specifications)
 
 ### Planning
-The waypoint updater node publishes a queue of `n` waypoints ahead of the vehicle position, each with a target velocity. For the simulator, `n=100` is sufficient. For the site (the real-world test track), we reduce to `n=20`. We dequeue traversed waypoints and enqueue new points, preserving and reusing those in the middle. When a light-state changes, the entire queue is updated. The vehicle stops at the final base waypoint. [more...](https://github.com/level5-engineers/system-integration/wiki/Readme-preparation#additional-specifications)
+The waypoint updater node publishes a queue of `n` waypoints ahead of the vehicle position, each with a target velocity. For the simulator, `n=100` is sufficient. For the site (the real-world test track), we reduce to `n=20`. We dequeue traversed waypoints and enqueue new points, preserving and reusing those in the middle. When a light-state changes, the entire queue is updated. The vehicle stops at the final base waypoint. [more...](#additional-specifications)
 
 ### Control
-The drive-by-wire node adjusts throttle and brakes according to the velocity targets published by the waypoint follower (which is informed by the waypoint updater node). If the list of waypoints contains a series of descending velocity targets, the PID velocity controller (in the twist controller component of DBW) will attempt to match the target velocity. [more...](https://github.com/level5-engineers/system-integration/wiki/Readme-preparation#additional-specifications)
+The drive-by-wire node adjusts throttle and brakes according to the velocity targets published by the waypoint follower (which is informed by the waypoint updater node). If the list of waypoints contains a series of descending velocity targets, the PID velocity controller (in the twist controller component of DBW) will attempt to match the target velocity. [more...](#additional-specifications)
 
 ### Operation
 There are three modes in which the controller operates: 
