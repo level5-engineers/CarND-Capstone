@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
+import os
+import csv
 import rospy
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Quaternion
 from styx_msgs.msg import Lane, Waypoint
 from std_msgs.msg import Int32
 
@@ -22,17 +24,11 @@ as well as to verify your TL classifier.
 
 '''
 
-LOOKAHEAD_WPS = 100 # Number of waypoints we will publish.
 PUBLISHING_RATE = 2 # Publishing frequency (Hz)
 
 class WaypointUpdater(object):
     def __init__(self):
         rospy.init_node('waypoint_updater')
-
-        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
-        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
-        self.traffic_sub = rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
-        self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
         # Member variables
         self.current_pose   = None  # current coords of vehicle
@@ -42,11 +38,19 @@ class WaypointUpdater(object):
         self.stop_waypoint  = None  # stop line index for the nearest light
         self.next_basewp    = None  # the next waypoint index to retrieve from base
         self.destination    = None  # the final waypoint in the list
+        self.num_base_wp    = 0     # the number of points in the base list
         self.msg_seq_num    = 0     # sequence number of published message
         self.velocity_drop  = 62.   # distance to begin reducing velocity
         self.VELOCITY_MAX   = 2.777 # mps Carla max of 10 km/h (updated by waypoints_cb)
+        self.LOOKAHEAD_WPS  = 20    # Number of waypoints we will publish.
         self.prev_state     = None  # previous traffic light state
         self.halt           = False # shut down
+        self.replan         = True  # when a light changes, update velocity
+        
+        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
+        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        self.traffic_sub = rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
+        self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
         # Operations loop and publishing of /final_waypoints
         rate = rospy.Rate(PUBLISHING_RATE)
@@ -68,12 +72,11 @@ class WaypointUpdater(object):
             # find the closest waypoint in the base waypoints
             next_wp = self.get_next_waypoint(self.base_waypoints)
             # initialize queue
-            num_base_wp = len(self.base_waypoints)
-            wp_idx = [idx % num_base_wp for idx in range(next_wp, next_wp + LOOKAHEAD_WPS)]
+            wp_idx = [idx % self.num_base_wp for idx in range(next_wp, next_wp + self.LOOKAHEAD_WPS)]
             self.queue_wp = [self.base_waypoints[wp] for wp in wp_idx]
             self.next_waypoint = 0
-            self.next_basewp = next_wp + LOOKAHEAD_WPS
-            rospy.loginfo("Queue initialized with %d waypoints from base_waypoints", LOOKAHEAD_WPS)
+            self.next_basewp = (next_wp + self.LOOKAHEAD_WPS) % self.num_base_wp
+            rospy.loginfo("Queue initialized with %d waypoints from base_waypoints", self.LOOKAHEAD_WPS)
         
         # manage queue
         if self.next_waypoint is not 0:
@@ -83,14 +86,17 @@ class WaypointUpdater(object):
             # enqueue until length is LOOKAHEAD_WPS
             for i in range(self.next_waypoint):
                 self.queue_wp.append(self.base_waypoints[self.next_basewp])
-                self.update_waypoint_velocity(LOOKAHEAD_WPS-self.next_waypoint+i)
+                self.update_waypoint_velocity(self.LOOKAHEAD_WPS-self.next_waypoint+i)
                 '''rospy.loginfo("Enqueing waypoint %d to queue", self.next_basewp)'''
                 
                 self.next_basewp += 1                             # TODO: modulo calc
                 if self.next_basewp == len(self.base_waypoints):  # handle end of track
                     self.next_basewp = 0                          # wrap around to the beginning
             '''rospy.loginfo("Queue has %d items", len(self.queue_wp))'''
-            
+        if self.replan:
+            self.update_velocities()
+            self.replan = False
+
     def update_velocities(self):
         # update all velocities in the queue
         #   if red in range of 4m (site) or 62m (sim) decel
@@ -176,31 +182,59 @@ class WaypointUpdater(object):
                 self.stop_waypoint = sidx             # set up an imaginary red traffic light
                 self.halt = True
                 rospy.loginfo("Destination waypoint acquired...begin slowing")
-                self.update_velocities()
+                self.replan = True
                 self.destination = None
 
     # The following callback is latched (called once)
     def waypoints_cb(self, waypoints):
-        self.base_waypoints = waypoints.waypoints
-        self.destination = len(waypoints.waypoints) - 1
+        self.base_waypoints = self.filterWaypoints(waypoints)
+        self.num_base_wp = len(self.base_waypoints)  # the number of points in the base list
+        self.destination = self.num_base_wp - 1
         
         # Acquire the default velocity from the waypoint loader
-        self.VELOCITY_MAX = waypoints.waypoints[100].twist.twist.linear.x
+        self.VELOCITY_MAX = self.base_waypoints[self.num_base_wp/2].twist.twist.linear.x
+        rospy.loginfo("Velocity max is: %.2f", self.VELOCITY_MAX)
         
+        # If simulator, use longer queue
+        if self.VELOCITY_MAX > 3.0:
+            self.LOOKAHEAD_WPS = 100
+
         # Compute a safe stopping distance
         self.velocity_drop = self.VELOCITY_MAX * self.VELOCITY_MAX / 2.
+        rospy.loginfo("Stopping distance is: %.2f", self.velocity_drop)
         
         #debug: set a closer destination waypoint to test end-of-track-halt condition
         #self.destination = 577
+
+    def filterWaypoints(self, wp):
+        if wp.waypoints[0].pose.pose.position.x == 10.4062:
+            waypoints = []
+            path = rospy.get_param('~path')
+            if not os.path.isfile(path):
+                return wp.waypoints
+            with open(path) as wfile:
+                reader = csv.DictReader(wfile, ['x','y','z','yaw'])
+                for wp in reader:
+                    p = Waypoint()
+                    p.pose.pose.position.x = float(wp['x'])
+                    p.pose.pose.position.y = float(wp['y'])
+                    p.pose.pose.position.z = float(wp['z'])
+                    q = tf.transformations.quaternion_from_euler(0., 0., float(wp['yaw']))
+                    p.pose.pose.orientation = Quaternion(*q)
+                    p.twist.twist.linear.x = 2.7777778
+                    waypoints.append(p)
+            rospy.loginfo("Corrected waypoints loaded")
+            return waypoints
+        return wp.waypoints
 
     def traffic_cb(self, msg):
         #self.stop_waypoint = msg.data if msg.data >= 0 else None
         # Halt before the stop line, otherwise we enter the intersection
         self.stop_waypoint = msg.data-3 if msg.data >= 0 else None
         
-        # Update queued waypoint velocities only on traffic light transitions
+        # traffic light transitions cause replanning in update loop
         if self.stop_waypoint != self.prev_state:
-            self.update_velocities()
+            self.replan = True
             self.prev_state = self.stop_waypoint
 
     def obstacle_cb(self, msg):

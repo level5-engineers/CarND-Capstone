@@ -33,6 +33,7 @@ class Controller(object):
         self.velocity_pidLO = PID(0.7, 0., 0., self.decel_limit/2., accel_limit)
         #self.lowpassFilt = LowPassFilter(accel_limit/2., 0.02) # good
         self.lowpassFilt = LowPassFilter(0.07, 0.02)
+        self.topVelocity = 0.
 
     def control(self, linear_velocity_target, angular_velocity_target, linear_velocity_current):
         # Throttle
@@ -57,8 +58,10 @@ class Controller(object):
                 brake = 0
                 
         # Steering
+        if linear_velocity_target > self.topVelocity: # mitigate rapid turning
+            self.topVelocity = linear_velocity_target
         if linear_velocity_current > 0.05:
-            steering = self.yawController.get_steering(linear_velocity_target, angular_velocity_target, linear_velocity_current) # self.correcting_pid.step(angular_velocity_target, 0.1)
+            steering = self.yawController.get_steering(self.topVelocity, angular_velocity_target, linear_velocity_current) # self.correcting_pid.step(angular_velocity_target, 0.1)
         else:
             steering = 0.
         # Alternate approach: steering = angular_velocity_target * self.steer_ratio
