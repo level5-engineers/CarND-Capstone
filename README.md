@@ -7,7 +7,7 @@
 #### Team
 
 * James Dunn, lead
-* Oleg Leyzerov
+* Oleg Leizerov
 * Aman Agarwal
 * Rajesh Bhatia
 * Yousof Ebneddin
