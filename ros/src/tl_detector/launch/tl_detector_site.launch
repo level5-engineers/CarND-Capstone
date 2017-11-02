@@ -2,6 +2,7 @@
 <launch>
     <node pkg="tl_detector" type="tl_detector.py" name="tl_detector" output="screen" cwd="node">
         <param name="path" value="$(find styx)../../../data/filter.csv" />
+        <param name="sim" value="0" />
     </node>
     <node pkg="tl_detector" type="light_publisher.py" name="light_publisher" output="screen" cwd="node"/>
 </launch>

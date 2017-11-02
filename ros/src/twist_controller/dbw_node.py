@@ -44,7 +44,7 @@ class DBWNode(object):
 
         self.vehicle_mass = rospy.get_param('~vehicle_mass', 1736.35)
         fuel_capacity     = rospy.get_param('~fuel_capacity', 13.5)
-        brake_deadband    = rospy.get_param('~brake_deadband', .1)
+        self.brake_deadband = rospy.get_param('~brake_deadband', .1)
         decel_limit       = rospy.get_param('~decel_limit', -5)
         accel_limit       = rospy.get_param('~accel_limit', 1.)
         self.wheel_radius = rospy.get_param('~wheel_radius', 0.2413)
@@ -68,7 +68,7 @@ class DBWNode(object):
             'max_steer_angle' : max_steer_angle,
             'decel_limit'     : decel_limit,
             'accel_limit'     : accel_limit,
-            'deadband'        : brake_deadband
+            'deadband'        : self.brake_deadband
         }
         self.controller = Controller(**parms)
  
@@ -84,7 +84,7 @@ class DBWNode(object):
 
     # Get predicted throttle, brake, and steering using `controller` object
     def loop(self):
-        rate = rospy.Rate(50) # 20Hz
+        rate = rospy.Rate(50) # 50Hz
         while not rospy.is_shutdown():
             if (self.current_command is not None) and (self.current_velocity is not None):
                 # get the current velocity, target velocity, and target angle and pass into control
@@ -120,9 +120,11 @@ class DBWNode(object):
         bcmd.enable = True
         
         bcmd.pedal_cmd_type = BrakeCmd.CMD_PERCENT
-        bcmd.pedal_cmd = brake * 1000.
+        if self.brake_deadband > 0.1:
+            brake *= 1000  # multiplier for sim
+        bcmd.pedal_cmd = brake
         
-        #TODO: test braking
+        # alternate torque braking
         #bcmd.pedal_cmd_type = BrakeCmd.CMD_TORQUE
         #if brake > 0. and throttle == 0.:
             #bcmd.pedal_cmd = brake * self.vehicle_mass * self.wheel_radius
