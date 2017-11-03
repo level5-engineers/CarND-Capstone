@@ -37,7 +37,7 @@ Legend: the letters a-k indicate published ROS topics
 ```
 
 ### Perception
-The traffic light detection and classification node uses a Convolutional Neural Network to classify whole images as either `red` or `none`. The model was trained with several datasets using the transfer learning technique on the MobileNet architecture with the Tensorflow Image Retraining Example (tutorial: https://goo.gl/HgmiVo, code: https://goo.gl/KdVcMi). [more...](#additional-specifications)
+For the simulator mode, the traffic light detection and classification node uses a Convolutional Neural Network to classify whole images as either `red` or `none`. The model was trained with several datasets using the transfer learning technique on the MobileNet architecture with the Tensorflow Image Retraining Example (tutorial: https://goo.gl/HgmiVo, code: https://goo.gl/KdVcMi). For the test-site mode, we employ the "SSD: Single Shot MultiBox Detection" framework to locate a bounding box around a traffic light. We applied transfer learning using the Tensorflow Object Detection API to fine-tune the pre-trained `ssd_mobilenet_v1_coco` model. The training dataset includes camera images from training, reference, and review rosbags. [more...](#additional-specifications)
 
 ### Planning
 The waypoint updater node publishes a queue of `n` waypoints ahead of the vehicle position, each with a target velocity. For the simulator, `n=100` is sufficient. For the site (the real-world test track), we reduce to `n=20`. We dequeue traversed waypoints and enqueue new points, preserving and reusing those in the middle. When a light-state changes, the entire queue is updated. The vehicle stops at the final base waypoint. [more...](#additional-specifications)
@@ -63,6 +63,9 @@ These modes are started by roslaunch. For example, to run the styx (simulator) v
 
 ### References
 
+[Traffic Light Detection and Classification](https://becominghuman.ai/traffic-light-detection-tensorflow-api-c75fdbadac62)<br>
+[SSD: Single Shot MultiBox Detection](https://arxiv.org/pdf/1512.02325.pdf)<br>
+[Machine learning](ftp://ftp.cs.wisc.edu/machine-learning/shavlik-group/torrey.handbook09.pdf)<br>
 [MobileNets](https://arxiv.org/abs/1704.04861)<br>
 [Transfer learning](http://ruder.io/transfer-learning/index.html)<br>
 [Pure Pursuit Algorithm](http://ri.cmu.edu/pub_files/pub3/coulter_r_craig_1992_1/coulter_r_craig_1992_1.pdf)<br>

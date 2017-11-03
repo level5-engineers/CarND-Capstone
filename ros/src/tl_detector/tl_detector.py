@@ -17,31 +17,35 @@ import numpy as np
 
 STATE_COUNT_THRESHOLD = 3
 CLASSIFIER_ENABLED = True
+PUBLISHING_RATE = 12 # Publishing frequency (Hz)
 
 from PIL import Image as PIL_Image
 
 class TLDetector(object):
     def __init__(self):
         rospy.init_node('tl_detector')
+        self.simulator = True if rospy.get_param('~sim') == 1 else False
 
         self.pose             = None
         self.waypoints        = None
         self.camera_image     = None
         self.lights           = []
         self.bridge           = CvBridge()
-        self.light_classifier = TLClassifier()
+        self.light_classifier = TLClassifier(self.simulator)
         self.listener         = tf.TransformListener()
         self.state            = TrafficLight.UNKNOWN
         self.last_state       = TrafficLight.UNKNOWN
         self.last_wp          = -1
         self.state_count      = 0
         self.camera_image     = None
-        self.seq              = 13332
+        self.seq              = 0
         self.count            = 0
         self.misscount        = 0.
         self.totcount         = 0.
         self.sight            = 75.   # cautionary distance
         self.wpAcquired       = False
+        self.lastCrop         = None
+        self.imageAcquired    = False
 
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -61,7 +65,32 @@ class TLDetector(object):
         self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
 
         sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
-        rospy.spin()
+        #rospy.spin()
+        # Operations loop to identify red lights in the incoming camera image and publishes
+        # the index of the waypoint closest to the red light's stop line to /traffic_waypoint
+        rate = rospy.Rate(PUBLISHING_RATE)
+        
+        while not rospy.is_shutdown():
+            if self.imageAcquired:
+                light_wp, state = self.process_traffic_lights()
+                '''
+                Publish upcoming red lights at PUBLISHING_RATE frequency.
+                Each predicted state has to occur `STATE_COUNT_THRESHOLD` number
+                of times until we start using it. Otherwise the previous stable
+                state is used.
+                '''
+                if self.state != state:
+                    self.state_count = 0
+                    self.state = state
+                elif self.state_count >= STATE_COUNT_THRESHOLD:
+                    self.last_state = self.state
+                    light_wp = light_wp if state == TrafficLight.RED or state == TrafficLight.YELLOW else -1
+                    self.last_wp = light_wp
+                    self.upcoming_red_light_pub.publish(Int32(light_wp))
+                else:
+                    self.upcoming_red_light_pub.publish(Int32(self.last_wp))
+                self.state_count += 1
+            rate.sleep()
 
     def pose_cb(self, msg):
         self.pose = msg
@@ -70,8 +99,8 @@ class TLDetector(object):
         if not self.wpAcquired:
             self.wpAcquired = True
             self.waypoints = self.filterWaypoints(msg)
-            if self.waypoints[20].twist.twist.linear.x < 5.:
-                self.sight = 20.  # adjust cautionary distance for site test
+            if not self.simulator:
+                self.sight = 16.  # adjust cautionary distance for site test
             print "cautionary distance", self.sight
             print self.waypoints[20].twist.twist.linear.x
 
@@ -79,34 +108,12 @@ class TLDetector(object):
         self.lights = msg.lights
 
     def image_cb(self, msg):
-        """Identifies red lights in the incoming camera image and publishes the index
-            of the waypoint closest to the red light's stop line to /traffic_waypoint
-
+        """Capture the inbound camera image
         Args:
             msg (Image): image from car-mounted camera
-
         """
-        self.has_image = True
+        self.imageAcquired = True
         self.camera_image = msg
-        light_wp, state = self.process_traffic_lights()
-
-        '''
-        Publish upcoming red lights at camera frequency.
-        Each predicted state has to occur `STATE_COUNT_THRESHOLD` number
-        of times till we start using it. Otherwise the previous stable state is
-        used.
-        '''
-        if self.state != state:
-            self.state_count = 0
-            self.state = state
-        elif self.state_count >= STATE_COUNT_THRESHOLD:
-            self.last_state = self.state
-            light_wp = light_wp if state == TrafficLight.RED or state == TrafficLight.YELLOW else -1
-            self.last_wp = light_wp
-            self.upcoming_red_light_pub.publish(Int32(light_wp))
-        else:
-            self.upcoming_red_light_pub.publish(Int32(self.last_wp))
-        self.state_count += 1
 
     def distance(self, pos1, pos2):
         return math.sqrt((pos1.position.x - pos2.position.x)**2 + (pos1.position.y - pos2.position.y)**2)
@@ -115,11 +122,9 @@ class TLDetector(object):
         """Identifies the closest path waypoint to the given position
             https://en.wikipedia.org/wiki/Closest_pair_of_points_problem
         Args:
-            pose (Pose): position to match a waypoint to
-        
+            pose (Pose): position to match a waypoint
         Returns:
             int: index of the closest waypoint in self.waypoints
-
         """
         index = -1 #Return if waypoints are empty
         if self.waypoints is None:
@@ -138,15 +143,12 @@ class TLDetector(object):
 
     def get_light_state(self, light):
         """Determines the current color of the traffic light
-
         Args:
             light (TrafficLight): light to classify
-
         Returns:
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
-
         """
-        if(not self.has_image):
+        if(not self.imageAcquired):
             self.prev_light_loc = None
             return TrafficLight.RED
 
@@ -158,8 +160,77 @@ class TLDetector(object):
             self.camera_image.encoding = 'rgb8'
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "rgb8")
 
-        #Get classification
-        return self.light_classifier.get_classification(cv_image)
+        # get classification (simulator classifies whole image)
+        if self.simulator:
+            return self.light_classifier.get_classification(cv_image)
+
+        # get classification (test site detects boxes using SSD and classifies with OpenCV)
+        # if previous location is not known, scan most of the image
+        if self.lastCrop is None:
+            gostop, found, location = self.light_classifier.get_classification( cv_image[0:500, 50:50+700] )
+            if found:
+                # check y extents
+                if location[0] < 150:
+                    top = 0
+                    bot = 300
+                else:
+                    top = location[0]-150
+                    if location[0] > 350:
+                        top = 200
+                        bot = 500
+                    else:
+                        bot = location[0]+150
+
+                # check x extents (remember, offset by 50)
+                if location[1]+50 < 150:
+                    left = 50
+                    right = 350
+                else:
+                    left = location[1]+50-150
+                    if location[1]+50 > 600:
+                        left = 450
+                        right = 750
+                    else:
+                        right = location[1]+50+150
+                self.lastCrop = (top,bot, left,right)
+                #print "first", self.lastCrop
+            # (no else) TL not found, next cycle will be a complete search again
+        # otherwise, use last known location as crop starting point
+        else:
+            (top,bot, left,right) = self.lastCrop
+            gostop, found, location = self.light_classifier.get_classification( cv_image[top:bot, left:right] )
+            if found: # determine crop for next cycle
+                # check y extents, offset by top
+                otop, oleft = top, left
+                if location[0]+otop < 150:
+                    top = 0
+                    bot = 300
+                else:
+                    top = location[0]+otop-150
+                    if location[0]+otop > 350:
+                        top = 200
+                        bot = 500
+                    else:
+                        bot = location[0]+otop+150
+                
+                # check x extents, offset by left
+                if location[1]+oleft+50 < 200:
+                    left = 50
+                    right = 350
+                else:
+                    left = location[1]+oleft+50-150
+                    if location[1]+oleft+50 > 600:
+                        left = 450
+                        right = 750
+                    else:
+                        right = location[1]+oleft+50+150
+                
+                self.lastCrop = (top,bot, left,right)
+                #print "next", self.lastCrop
+            else:
+                self.lastCrop = None
+                #print "none"
+        return gostop
 
     def get_nearest_stop_line(self, waypoint_start_index):
         stop_line = None
@@ -184,7 +255,6 @@ class TLDetector(object):
         Returns:
             int: index of waypoint closest to the upcoming stop line for a traffic light (-1 if none exists)
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
-
         """
         if(self.pose):
             car_position = self.get_closest_waypoint(self.pose.pose)
@@ -214,7 +284,7 @@ class TLDetector(object):
                                     #self.saveImage(self.camera_image, stateTruth)
                                     self.misscount += 1.
                                 self.totcount += 1.
-                                print "mismatch%: ", self.misscount / self.totcount
+                                #print "mismatch%: ", self.misscount / self.totcount
                                 #self.saveImage(self.camera_image, stateTruth)
                         else:
                             for light in self.lights:

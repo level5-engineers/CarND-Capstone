@@ -46,6 +46,7 @@ class WaypointUpdater(object):
         self.prev_state     = None  # previous traffic light state
         self.halt           = False # shut down
         self.replan         = True  # when a light changes, update velocity
+        self.loop           = True  # loop around the test site (updated by waypoints_cb)
         
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -109,7 +110,7 @@ class WaypointUpdater(object):
         # By default, set the velocity to maximum
         self.queue_wp[index].twist.twist.linear.x = self.VELOCITY_MAX
         # unless we are in a halt state
-        if self.halt:
+        if not self.loop and self.halt:
             self.queue_wp[index].twist.twist.linear.x = 0.
         # otherwise...
         elif self.stop_waypoint is not None:
@@ -173,7 +174,7 @@ class WaypointUpdater(object):
         self.current_pose = msg.pose
         
         # Check for proximity to destination
-        if self.destination is not None:
+        if not self.loop and (self.destination is not None):
             sidx = self.destination
             distance_to_destination = self.distance2(self.current_pose.position, self.base_waypoints[sidx].pose.pose.position)
             # and if we are within stopping distance...
@@ -195,9 +196,10 @@ class WaypointUpdater(object):
         self.VELOCITY_MAX = self.base_waypoints[self.num_base_wp/2].twist.twist.linear.x
         rospy.loginfo("Velocity max is: %.2f", self.VELOCITY_MAX)
         
-        # If simulator, use longer queue
+        # If simulator, use longer queue and halt at destination
         if self.VELOCITY_MAX > 3.0:
             self.LOOKAHEAD_WPS = 100
+            self.loop = False # comment this line to loop in simulator
 
         # Compute a safe stopping distance
         self.velocity_drop = self.VELOCITY_MAX * self.VELOCITY_MAX / 2.

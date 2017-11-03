@@ -1,14 +1,19 @@
 import tensorflow as tf
 import cv2
 import numpy as np
+import time
 
+# Reference: https://github.com/udacity/CarND-Object-Detection-Lab
 class TLClassifier(object):
-    def __init__(self):
-        #load classifier
-        # labels_filename = 'tl_detector/light_classification/model/sim_labels_incv3_92.txt'
-        # graph_filename = 'tl_detector/light_classification/model/sim_graph_incv3_92.pb'
+    def __init__(self, simulator):
+        self.seq = 0
+        self.simulator = simulator
+        start = time.time()
+        if simulator:
+            graph_filename = 'light_classification/model/sim_graph.pb'
+        else:
+            graph_filename = 'light_classification/model/site_graph.pb'
         labels_filename = 'light_classification/model/sim_labels.txt'
-        graph_filename = 'light_classification/model/sim_graph.pb'
         
         self.labels = self.load_labels(labels_filename)
         self.labels_dic = {'yellow':1,
@@ -16,69 +21,169 @@ class TLClassifier(object):
                             'red':0,
                             'none':4}
         
-        with tf.Session() as persisted_sess:
-            with tf.gfile.FastGFile(graph_filename, 'rb') as f:
-                graph_def = tf.GraphDef()
+        print("Initializing TensorFlow...")
+        self.detection_graph = tf.Graph()
+        # configure for a GPU
+        config = tf.ConfigProto()
+        config.gpu_options.allow_growth = True
+        # load trained tensorflow graph
+        with self.detection_graph.as_default():
+            graph_def = tf.GraphDef()
+            with tf.gfile.GFile(graph_filename, 'rb') as f:
                 graph_def.ParseFromString(f.read())
-                persisted_sess.graph.as_default()
                 tf.import_graph_def(graph_def, name='')
-                self.sess = persisted_sess
+            
+            self.sess = tf.Session(graph=self.detection_graph, config=config)
+            
+            # configure input and output
+            if simulator:
+                self.image_tensor   = self.detection_graph.get_tensor_by_name('input:0')
+                self.softmax_tensor = self.detection_graph.get_tensor_by_name('final_result:0')
+                image               = np.asarray(np.random.rand(224,224,3)*2.-1.)
+            else:
+                self.image_tensor   = self.detection_graph.get_tensor_by_name('image_tensor:0')
+                self.num_detections = self.detection_graph.get_tensor_by_name('num_detections:0')
+                self.dboxes         = self.detection_graph.get_tensor_by_name('detection_boxes:0')
+                self.dscores        = self.detection_graph.get_tensor_by_name('detection_scores:0')
+                self.dclasses       = self.detection_graph.get_tensor_by_name('detection_classes:0')
+                image               = np.asarray(np.random.rand(300,300,3)*255, dtype="uint8")
+
+            # initialize the network by running a randomized image
+            image_expanded = np.expand_dims(image, axis=0)
+            startA = time.time()
+            if simulator:
+                _ = self.sess.run(self.softmax_tensor, {self.image_tensor: image_expanded, 'Placeholder:0':1.0})
+            else:
+                _ = self.sess.run([self.dboxes, self.dscores, self.dclasses, self.num_detections],
+              feed_dict={self.image_tensor: image_expanded})
+        endA = time.time()
+        print('Priming duration: ', endA-startA)
+        end = time.time()
+        print('Total initialization time: ', end-start)
 
     def load_labels(self, filename):
         """Read in labels, one label per line.
         From Tensorflow Example image retrain"""
-        print ('filename', filename)
         return [line.rstrip() for line in tf.gfile.GFile(filename)]
-
-    # for testing purposes
-    def load_image(self, filename):
-        """Read in the image_data to be classified."""
-        #return tf.gfile.FastGFile(filename, 'rb').read()
-
-        img = cv2.imread(filename)
-        image_data = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        image_data = cv2.resize(image_data, (224,224))
-        image_data = (image_data - 128.)/128.
-        image_data = np.reshape(image_data, (1,224,224,3))
-        return image_data
 
     # downsample the incoming image from the ROS message
     def scale_image(self, img):
-        #img = cv2.imread(img)
-        #img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         image_data = cv2.resize(img, (224,224))
         image_data = (image_data - 128.)/128.
         image_data = np.reshape(image_data, (1, 224,224,3))
         return image_data
 
-    def run_graph(self, image_data, labels, input_layer_name, output_layer_name,
-              num_top_predictions=1):
-        #with tf.Session() as sess:
-        # Feed the image_data as input to the graph.
-        #   predictions will contain a two-dimensional array, where one
-        #   dimension represents the input image count, and the other has
-        #   predictions per class
-        softmax_tensor = self.sess.graph.get_tensor_by_name(output_layer_name)
-        predictions, = self.sess.run(softmax_tensor, {input_layer_name: image_data, 'Placeholder:0':1.0})
+    # Convert normalized box coordinates to pixels
+    def to_image_coords(self, boxes, dim):
+        """
+        The original box coordinate output is normalized, i.e [0, 1].
+        This converts it back to the original coordinates based on the
+        image size. Optimized.
+        """
+        h, w = dim[0], dim[1]
+        box_coords = [int(boxes[0]*h), int(boxes[1]*w), int(boxes[2]*h), int(boxes[3]*w)]
+        return np.array(box_coords)
 
-        # Sort to show labels in order of confidence
-        top_k = predictions.argsort()[-num_top_predictions:][::-1]
-        for node_id in top_k:
-            human_string = labels[node_id]
-            score = predictions[node_id]
-            print('%s (score = %.5f)' % (human_string, score))
-        return human_string
+    def locateTL(self, image):
+        box = [0, 0, 0, 0]
+        with self.detection_graph.as_default():
+            image_expanded = np.expand_dims(image, axis=0)
+            (boxes, scores, classes, num_detections) = self.sess.run(
+              [self.dboxes, self.dscores, self.dclasses, self.num_detections],
+              feed_dict={self.image_tensor: image_expanded})
+            
+            # Remove unnecessary dimensions
+            boxes   = np.squeeze(boxes)
+            class_  = np.int32(np.squeeze(classes).tolist())
+            scores  = np.squeeze(scores)
+            
+            # First occurrence where clsid<4 (traffic lights)
+            index = next((i for i, clsid in enumerate(class_) if clsid < 4), None)
+            if index == None:
+                print 'No traffic light detected'
+            elif scores[index] < 0.5:
+                print 'Low confidence: ', scores[index]
+            else:
+                b = self.to_image_coords(boxes[index], image.shape[0:2])
+                b_w = b[3] - b[1]
+                ratio = (b[2] - b[0]) / (b_w + 0.00001)
+                if (b_w >= 20) and (ratio > 2.0) and (ratio < 3.8):
+                    #print 'Confidence: ', scores[index]
+                    box = b
+        return box
 
+    # Classify a traffic light based on simple geometric properties
+    # Expects a gray-scale image
+    def classifyTL(self, image_data):
+        # get the image center geometry
+        midX = int(image_data.shape[1]/2)
+        midY = int(image_data.shape[0]/2)
+        thirdY = int(image_data.shape[0]/3)
+        p = int(thirdY/3) #patch size
+        # get the center point of each ROI
+        rROI = ( int(thirdY/2) , midX )
+        yROI = ( midY, midX )
+        gROI = ( midY+thirdY , midX )
+        # find the average from each center patch
+        rROI = int(np.mean(image_data[rROI[0]-p:rROI[0]+p, rROI[1]-p:rROI[1]+p]))
+        yROI = int(np.mean(image_data[yROI[0]-p:yROI[0]+p, yROI[1]-p:yROI[1]+p]))
+        gROI = int(np.mean(image_data[gROI[0]-p:gROI[0]+p, gROI[1]-p:gROI[1]+p]))
+        # perform simple brightness comparisons and print for humans
+        if (gROI > yROI) and (gROI > rROI):
+            print(">>> GREEN <<<")
+        elif (yROI > gROI) and (yROI > rROI):
+            print(">>> YELLOW <<<")
+        elif (rROI > yROI) and (rROI > gROI):
+            print(">>> RED <<<")
+        if (gROI > yROI) and (gROI > rROI):
+            return 1 # GO
+        else:
+            return 0 # STOP
+            
+    def saveImage(self,img):
+        fname = '/home/student/xdrive/debug/out' + str(self.seq).zfill(5)+'.png'
+        print "Saving tl image", fname
+        cv2.imwrite(fname, img)
+        self.seq += 1
+  
     def get_classification(self, image):
-        """Determines the color of the traffic light in the image
+        """Locates and determines the color of the traffic light in the image
         Args:
             image (cv::Mat): image containing the traffic light
         Returns:
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
         """
-        # Perform light color prediction
-        # For testing: image_data = self.load_image(image)
-        image_data = self.scale_image(image)  #DecodeJpeg
-        predict_label = self.run_graph(image_data, self.labels, 'input:0', 'final_result:0', 1)
+        #print('____________________________________________________________________')
+        #print image.shape[0], image.shape[1]
 
-        return self.labels_dic[predict_label]
+        if self.simulator:
+            image_data = self.scale_image(image)
+            predictions, = self.sess.run(self.softmax_tensor, {self.image_tensor: image_data, 'Placeholder:0':1.0})
+
+            # Sort to show labels in order of confidence
+            top_k = predictions.argsort()[-1:][::-1]
+            for node_id in top_k:
+                predict_label = self.labels[node_id]
+                score = predictions[node_id]
+                print '%s (score = %.5f)' % (predict_label, score)
+            return self.labels_dic[predict_label]
+
+        else:
+            start = time.time()
+            b = self.locateTL(image)
+            end = time.time()
+            print 'Detection time: ', end-start
+            
+            # If there is no detection or low-confidence detection
+            if np.array_equal(b, np.zeros(4)):
+                #print ('unknown')
+                signal_status = True # Go
+                tlFound = False
+            else:
+                img_tl = cv2.cvtColor(image[b[0]:b[2], b[1]:b[3]], cv2.COLOR_RGB2HSV)[:,:,2]
+                #self.saveImage(img_tl)
+                signal_status = self.classifyTL(img_tl)
+                #print("GO" if signal_status else "STOP")
+                tlFound = True
+            end = time.time()
+            return 4 if signal_status else 0, tlFound, (b[0],b[1]) # return position

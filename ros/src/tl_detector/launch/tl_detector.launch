@@ -2,5 +2,6 @@
 <launch>
     <node pkg="tl_detector" type="tl_detector.py" name="tl_detector" output="screen" cwd="node">
         <param name="path" value="$(find styx)../../../data/filter.csv" />
+        <param name="sim" value="1" />
     </node>
 </launch>
