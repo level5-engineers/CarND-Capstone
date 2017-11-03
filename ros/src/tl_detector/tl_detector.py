@@ -15,9 +15,9 @@ import yaml
 import math
 import numpy as np
 
-STATE_COUNT_THRESHOLD = 1 # set back to 3
+STATE_COUNT_THRESHOLD = 3
 CLASSIFIER_ENABLED = True
-PUBLISHING_RATE = 6 # Publishing frequency (Hz)    set back to 10
+PUBLISHING_RATE = 12 # Publishing frequency (Hz)
 
 from PIL import Image as PIL_Image
 

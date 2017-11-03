@@ -153,7 +153,7 @@ class TLClassifier(object):
         Returns:
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
         """
-        print('____________________________________________________________________')
+        #print('____________________________________________________________________')
         #print image.shape[0], image.shape[1]
 
         if self.simulator:
