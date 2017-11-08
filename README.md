@@ -1,3 +1,4 @@
+[![Udacity - Self-Driving Car NanoDegree](https://s3.amazonaws.com/udacity-sdc/github/shield-carnd.svg)](http://www.udacity.com/drive) ![completion](https://img.shields.io/badge/completion%20state-100%25-blue.svg?style=plastic)<br><br><br>
 ![level5-engineers](https://avatars1.githubusercontent.com/u/31551095?v=4&s=100)
 ### level5-engineers
 <b>CarND Capstone Project: System Integration</b><br>
@@ -14,6 +15,11 @@
 
 ### Objective
 Create code to drive a vehicle in both a Unity-based simulator and a real-world Lincoln MKZ around a closed-circuit test-track. This repository contains all ROS nodes to implement the core functionality of an autonomous vehicle system.
+
+### Results
+From the Udacity review: "Excellent work here! The car drove very smoothly around the waypoints, and made a full stop for the red light. Well done!" 
+- Video from the dash camera onboard the test vehicle: ![site test](https://vimeo.com/241961307) (Drive-by-wire is engaged at 2s and disengaged at 38s.) 
+- Log file, ROS bag, and feedback: ![here](https://udacity-selfdrivingcar.s3.amazonaws.com/reviews/834316_1510097183.zip)
 
 ### Implementation Notes
 
