@@ -18,9 +18,9 @@ Create code to drive a vehicle in both a Unity-based simulator and a real-world 
 
 ### Results
 From the Udacity review: "Excellent work here! The car drove very smoothly around the waypoints, and made a full stop for the red light. Well done!" 
-- Video from the dash camera onboard the test vehicle: ![site test](https://vimeo.com/241961307) (Drive-by-wire is engaged at 2s and disengaged at 38s.) 
+- Video from the dash camera onboard the test vehicle: <a href="https://vimeo.com/241961307" target="_blank">here</a> (Drive-by-wire is engaged at 2s and disengaged at 38s.) 
 - A map of the test run can be found ![here](https://github.com/level5-engineers/system-integration/wiki/Site-Test#second-review-final)
-- Log file, ROS bag, and feedback: ![here](https://udacity-selfdrivingcar.s3.amazonaws.com/reviews/834316_1510097183.zip)
+- Log file, ROS bag, and feedback: <a href="https://udacity-selfdrivingcar.s3.amazonaws.com/reviews/834316_1510097183.zip" target="_blank">here</a>
 
 ### Implementation Notes
 
