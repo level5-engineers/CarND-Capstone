@@ -18,9 +18,15 @@ Create code to drive a vehicle in both a Unity-based simulator and a real-world 
 
 ### Results
 From the Udacity review: "Excellent work here! The car drove very smoothly around the waypoints, and made a full stop for the red light. Well done!" 
-- Video from the dash camera onboard the test vehicle: <a href="https://vimeo.com/241961307" target="_blank">here</a> (Drive-by-wire is engaged at 2s and disengaged at 38s.) 
+- Video from the dash camera onboard the test vehicle: <a href="https://vimeo.com/241961307" target="_blank">on Vimeo</a> (Drive-by-wire is engaged at 2s and disengaged at 38s.) 
+- Point cloud vizualization: <a href="https://vimeo.com/242918172" target="_blank">on Vimeo</a>
 - A map of the test run can be found ![here](https://github.com/level5-engineers/system-integration/wiki/Site-Test#second-review-final)
 - Log file, ROS bag, and feedback: <a href="https://udacity-selfdrivingcar.s3.amazonaws.com/reviews/834316_1510097183.zip" target="_blank">here</a>
+
+Below is a visualization of the lidar point cloud from the team's test run on the autonomous Lincoln.
+<a href="https://vimeo.com/242918172" target="_blank">
+![Point cloud visualization](https://github.com/level5-engineers/assets/blob/master/images/pcgif.gif?raw=true)
+</a>
 
 ### Implementation Notes
 
